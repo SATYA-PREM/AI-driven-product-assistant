@@ -1,0 +1,13 @@
+customer_id,rating,feedback,date
+C001,2,Checkout is very slow.,2026-08-20
+C002,5,The new search feature is excellent.,2026-08-21
+C003,1,I cannot login to my account.,2026-08-21
+C004,2,VERY SLOW CHECKOUT!!!,2026-08-22
+C005,4,Great mobile app experience overall.,2026-08-22
+C006,1,Login keeps failing with an error.,2026-08-23
+C007,3,Search results are okay but could be more relevant.,2026-08-23
+C008,2,Checkout page freezes on the payment step.,2026-08-24
+C009,5,Customer support resolved my issue quickly.,2026-08-24
+C010,,Missing rating on purpose to test validation.,2026-08-25
+C011,7,Invalid rating on purpose to test range validation.,2026-08-25
+C002,5,The new search feature is excellent.,2026-08-21
