@@ -32,7 +32,7 @@ def health():
         "mongodb_csv_pipeline": db_status
     }
 
-@app.post("/upload-csv")
+@app.post("/upload-csv", tags=["CSV Pipeline"])
 async def upload_csv(file: UploadFile = File(...)):
     """
     Upload a .csv file. Runs it through the full pipeline:
@@ -46,7 +46,7 @@ async def upload_csv(file: UploadFile = File(...)):
     summary = run_pipeline(filename=file.filename, file_bytes=file_bytes)
     return summary
 
-@app.get("/batches")
+@app.get("/batches", tags=["CSV Pipeline"])
 def list_batches():
     """Lists every upload batch (the 'receipts'), most recent first."""
     batches = list(batches_col.find().sort("uploaded_at", -1))
@@ -54,7 +54,7 @@ def list_batches():
         b["_id"] = str(b["_id"])
     return batches
 
-@app.get("/batches/{batch_id}/raw")
+@app.get("/batches/{batch_id}/raw", tags=["CSV Pipeline"])
 def get_raw_data(batch_id: str):
     """Returns the untouched raw rows stored for this batch."""
     docs = list(raw_data_col.find({"batch_id": batch_id}))
@@ -62,7 +62,7 @@ def get_raw_data(batch_id: str):
         d["_id"] = str(d["_id"])
     return docs
 
-@app.get("/batches/{batch_id}/cleaned")
+@app.get("/batches/{batch_id}/cleaned", tags=["CSV Pipeline"])
 def get_cleaned_data(batch_id: str):
     """Returns the cleaned rows stored for this batch."""
     docs = list(cleaned_data_col.find({"batch_id": batch_id}))
