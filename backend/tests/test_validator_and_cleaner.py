@@ -6,8 +6,8 @@ Run with:
     pytest tests/test_validator_and_cleaner.py -v
 """
 
-from app.validator import validate_row, validate_rows
-from app.cleaner import normalize_text, normalize_date, clean_row
+from app.services.validation.validator import validate_row, validate_rows
+from app.services.cleaning.cleaner import normalize_text, normalize_date, clean_row
 
 
 # --- validator.py tests ---
