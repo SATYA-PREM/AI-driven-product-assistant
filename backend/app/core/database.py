@@ -24,3 +24,16 @@ def get_database():
 
 def get_users_collection():
     return users_collection
+
+# CSV Pipeline collections
+batches_col = db["batches"]
+raw_data_col = db["raw_data"]
+cleaned_data_col = db["cleaned_data"]
+
+def check_connection() -> bool:
+    try:
+        client.admin.command("ping")
+        return True
+    except Exception as e:
+        print(f"MongoDB connection failed: {e}")
+        return False
