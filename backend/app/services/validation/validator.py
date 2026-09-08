@@ -1,3 +1,5 @@
+# Legacy CSV-specific validator.
+# For the new multi-format pipeline, use validation_service.py instead.
 """
 validator.py
 --------------

@@ -1,3 +1,5 @@
+# Legacy CSV pipeline. For the new multi-format pipeline,
+# use ingestion_service + validation_service + cleaning_service instead.
 """
 pipeline.py
 --------------

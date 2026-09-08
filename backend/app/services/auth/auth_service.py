@@ -1,139 +1,72 @@
-from fastapi import HTTPException, status
-from bson import ObjectId
+from __future__ import annotations
 
-from app.core.database import users_collection
-from app.core.security import (
-    hash_password,
-    verify_password,
-    create_access_token
-)
+from app.repositories.user_repository import user_repository
 from app.models.user import UserModel
+from app.core.exceptions import DuplicateError, AuthenticationError, NotFoundError
+from app.services.auth.password_service import password_service
+from app.services.auth.token_service import token_service
+from app.utils.serialization import serialize_document
 
 
 class AuthService:
+    """Service for handling high-level authentication flows."""
 
     @staticmethod
-    def register(
-        name: str,
-        email: str,
-        password: str
-    ):
+    def register(name: str, email: str, password: str, role: str = "member") -> dict:
+        """Register a new user."""
+        if user_repository.find_by_email(email):
+            raise DuplicateError("User", f"email '{email}'")
 
-        email = email.lower().strip()
+        is_valid, errors = password_service.validate_password_strength(password)
+        if not is_valid:
+            raise AuthenticationError(f"Weak password: {', '.join(errors)}")
 
-        existing_user = users_collection.find_one(
-            {"email": email}
-        )
-
-        if existing_user:
-
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Email already registered"
-            )
-
-        password_hash = hash_password(password)
-
-        user_document = UserModel.create_document(
+        hashed_password = password_service.hash_password(password)
+        user_doc = UserModel.create_document(
             name=name,
             email=email,
-            password_hash=password_hash,
-            role="user"
+            password_hash=hashed_password,
+            hashed_password=hashed_password,
+            role=role
         )
+        user_id = user_repository.create(user_doc)
+        user_doc["_id"] = user_id
 
-        result = users_collection.insert_one(
-            user_document
-        )
+        token = token_service.create_access_token(str(user_id), email, role)
+        return {
+            "access_token": token,
+            "token_type": "bearer",
+            "user": serialize_document(user_doc)
+        }
 
-        user_id = str(result.inserted_id)
+    @staticmethod
+    def login(email: str, password: str) -> dict:
+        """Authenticate a user and return a token."""
+        user_doc = user_repository.find_by_email(email)
+        if not user_doc:
+            raise AuthenticationError("Invalid email or password.")
 
-        token = create_access_token(
-            user_id=user_id,
-            email=email,
-            role="user"
-        )
+        pwd_hash = user_doc.get("password_hash") or user_doc.get("hashed_password") or ""
+        if not password_service.verify_password(password, pwd_hash):
+            raise AuthenticationError("Invalid email or password.")
+
+        user_id = str(user_doc["_id"])
+        role = user_doc.get("role", "member")
+        token = token_service.create_access_token(user_id, email, role)
 
         return {
             "access_token": token,
             "token_type": "bearer",
-            "user": {
-                "id": user_id,
-                "name": name,
-                "email": email,
-                "role": "user",
-                "is_active": True
-            }
+            "user": serialize_document(user_doc)
         }
 
     @staticmethod
-    def login(
-        email: str,
-        password: str
-    ):
+    def get_user_by_id(user_id: str) -> dict | None:
+        """Retrieve user details by ID."""
+        user_doc = user_repository.get_by_id(user_id)
+        if not user_doc:
+            raise NotFoundError("User", user_id)
+        return serialize_document(user_doc)
 
-        email = email.lower().strip()
 
-        user = users_collection.find_one(
-            {"email": email}
-        )
-
-        if not user:
-
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid email or password"
-            )
-
-        if not verify_password(
-            password,
-            user["password_hash"]
-        ):
-
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid email or password"
-            )
-
-        if not user.get("is_active", False):
-
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="User account is inactive"
-            )
-
-        user_id = str(user["_id"])
-
-        token = create_access_token(
-            user_id=user_id,
-            email=user["email"],
-            role=user.get("role", "user")
-        )
-
-        return {
-            "access_token": token,
-            "token_type": "bearer",
-            "user": {
-                "id": user_id,
-                "name": user["name"],
-                "email": user["email"],
-                "role": user.get("role", "user"),
-                "is_active": user.get("is_active", True)
-            }
-        }
-
-    @staticmethod
-    def get_user_by_id(user_id: str):
-
-        if not ObjectId.is_valid(user_id):
-
-            return None
-
-        user = users_collection.find_one(
-            {"_id": ObjectId(user_id)}
-        )
-
-        if not user:
-
-            return None
-
-        return user
+auth_service = AuthService()

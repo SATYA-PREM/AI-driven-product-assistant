@@ -1,6 +1,6 @@
 @echo off
-echo Starting CSV Pipeline Server...
-cd /d "C:\Users\belam\Downloads\csv-pipeline"
+echo Starting Product Intelligence API...
+cd /d "%~dp0"
 call venv\Scripts\activate
 start http://127.0.0.1:8000/docs
 uvicorn app.main:app --reload
