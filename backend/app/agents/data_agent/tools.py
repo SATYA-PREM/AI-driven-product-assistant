@@ -1,14 +1,18 @@
 """
 tools.py
 ---------
-Tool functions for the Data Agent.
+Tool functions and CrewAI tool wrappers for the Data Agent.
 Each tool delegates to the appropriate backend service.
 
 Pattern:
-    Agent → Tool → Service → Repository → MongoDB
+    CrewAI Agent → Tool Wrapper → Service → Repository → MongoDB
 """
 
 from __future__ import annotations
+
+import json
+from typing import Any
+from crewai.tools import tool
 
 from app.core.logging import get_logger
 from app.core.exceptions import NotFoundError
@@ -23,6 +27,8 @@ logger = get_logger(__name__)
 data_repository = DataRepository()
 validation_repository = ValidationRepository()
 
+
+# ── Core Backend Tool Functions (return Python dicts) ──────────────
 
 def inspect_dataset(dataset_id: str) -> dict:
     """
@@ -177,3 +183,103 @@ def preprocess_dataset(dataset_id: str, workspace_id: str) -> dict:
     from app.services.preprocessing.preprocessing_service import PreprocessingService
     preprocessing_service = PreprocessingService()
     return preprocessing_service.preprocess_dataset(dataset_id, workspace_id)
+
+
+# ── CrewAI Tool Wrappers (for CrewAI Agents) ───────────────────────
+
+@tool("Inspect Dataset")
+def inspect_dataset_tool(dataset_id: str) -> str:
+    """
+    Inspect a dataset to see its metadata, record counts, and status across pipeline stages.
+    Use this tool when you need to understand the raw record count or current status of a dataset.
+    """
+    try:
+        data = inspect_dataset(dataset_id=dataset_id)
+        return json.dumps(data, default=str)
+    except Exception as e:
+        logger.error(f"Error in inspect_dataset_tool: {e}")
+        return json.dumps({"error": str(e), "dataset_id": dataset_id})
+
+
+@tool("Get Job Status")
+def get_job_status_tool(job_id: str) -> str:
+    """
+    Check the current status and progress percentage of a processing job.
+    Use this tool to track long-running data processing tasks.
+    """
+    try:
+        data = get_job_status(job_id=job_id)
+        return json.dumps(data, default=str)
+    except Exception as e:
+        logger.error(f"Error in get_job_status_tool: {e}")
+        return json.dumps({"error": str(e), "job_id": job_id})
+
+
+@tool("Get Dataset Summary")
+def get_dataset_summary_tool(dataset_id: str) -> str:
+    """
+    Get a comprehensive summary of a dataset including counts at every stage:
+    raw, validated, cleaned, and processed records, plus latest job information.
+    """
+    try:
+        data = get_dataset_summary(dataset_id=dataset_id)
+        return json.dumps(data, default=str)
+    except Exception as e:
+        logger.error(f"Error in get_dataset_summary_tool: {e}")
+        return json.dumps({"error": str(e), "dataset_id": dataset_id})
+
+
+@tool("Validate Dataset")
+def validate_dataset_tool(dataset_id: str, workspace_id: str) -> str:
+    """
+    Run schema and business rule validation on raw data records of a dataset.
+    Checks data quality, identifies invalid records, and computes a quality score.
+    """
+    try:
+        data = validate_dataset(dataset_id=dataset_id, workspace_id=workspace_id)
+        return json.dumps(data, default=str)
+    except Exception as e:
+        logger.error(f"Error in validate_dataset_tool: {e}")
+        return json.dumps({"error": str(e), "dataset_id": dataset_id})
+
+
+@tool("Clean Dataset")
+def clean_dataset_tool(dataset_id: str, workspace_id: str) -> str:
+    """
+    Clean validated data records: text normalization, deduplication, and missing value handling.
+    Produces sanitized cleaned records ready for preprocessing.
+    """
+    try:
+        data = clean_dataset(dataset_id=dataset_id, workspace_id=workspace_id)
+        return json.dumps(data, default=str)
+    except Exception as e:
+        logger.error(f"Error in clean_dataset_tool: {e}")
+        return json.dumps({"error": str(e), "dataset_id": dataset_id})
+
+
+@tool("Preprocess Dataset")
+def preprocess_dataset_tool(dataset_id: str, workspace_id: str) -> str:
+    """
+    Convert cleaned data records into canonical AI-ready ProductSignal format.
+    Prepares datasets for downstream NLP, sentiment, topic, and cluster analysis.
+    """
+    try:
+        data = preprocess_dataset(dataset_id=dataset_id, workspace_id=workspace_id)
+        return json.dumps(data, default=str)
+    except Exception as e:
+        logger.error(f"Error in preprocess_dataset_tool: {e}")
+        return json.dumps({"error": str(e), "dataset_id": dataset_id})
+
+
+def get_data_agent_tools() -> list[Any]:
+    """
+    Returns the list of CrewAI tools available to the Data Agent.
+    """
+    return [
+        inspect_dataset_tool,
+        get_job_status_tool,
+        get_dataset_summary_tool,
+        validate_dataset_tool,
+        clean_dataset_tool,
+        preprocess_dataset_tool,
+    ]

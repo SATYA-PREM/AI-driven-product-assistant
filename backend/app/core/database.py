@@ -77,6 +77,9 @@ raw_data_collection: Collection = CollectionProxy("raw_data")
 validation_results_collection: Collection = CollectionProxy("validation_results")
 cleaned_data_collection: Collection = CollectionProxy("cleaned_data")
 processed_data_collection: Collection = CollectionProxy("processed_data")
+dirty_data_collection: Collection = CollectionProxy("dirty_data")
+ai_preprocessed_collection: Collection = CollectionProxy("ai_preprocessed_data")
+salvaged_data_collection: Collection = CollectionProxy("salvaged_data")
 processing_jobs_collection: Collection = CollectionProxy("processing_jobs")
 workflows_collection: Collection = CollectionProxy("workflows")
 
@@ -106,11 +109,15 @@ def initialize_database() -> None:
         validation_results_collection.create_index("dataset_id", unique=True)
         cleaned_data_collection.create_index("dataset_id")
         processed_data_collection.create_index("dataset_id")
+        dirty_data_collection.create_index("dataset_id")
+        ai_preprocessed_collection.create_index("dataset_id")
+        salvaged_data_collection.create_index("dataset_id")
         processing_jobs_collection.create_index("dataset_id")
         workflows_collection.create_index("workspace_id")
         logger.info("Database indexes initialized successfully")
     except Exception as e:
         logger.warning(f"Database indexing skipped (offline or unreachable): {e}")
+
 
 
 def check_connection() -> bool:

@@ -1,37 +1,159 @@
 """
 agent.py
 ---------
-Data Agent for the Product Intelligence platform.
+CrewAI Data Agent for the Product Intelligence platform.
 
-The Data Agent orchestrates the data pipeline by calling tool functions
-that delegate to backend services. It can work with or without a
-Gemini API key — when no key is available, it provides a direct
-tool-calling interface without LLM orchestration.
+The Data Agent orchestrates data pipeline operations:
+Validation → Cleaning → Preprocessing → AI-Ready Product Signals.
+
+Operates both as:
+1. A native CrewAI Agent (for multi-agent crews and autonomous task execution).
+2. A direct programmatic service interface (for deterministic API / test execution).
 
 Architecture:
-    User → Data Agent → Tools → Services → Repositories → MongoDB
+    User / Multi-Agent Crew → Data Agent (CrewAI) → Tools → Services → Repositories → MongoDB
 """
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
+from crewai import Agent, Task, Crew, Process
 
 from app.core.config import settings
 from app.core.logging import get_logger
-from app.core.exceptions import NotFoundError, PipelineError
-from app.agents.data_agent.prompts import DATA_AGENT_SYSTEM_PROMPT
+from app.agents.llm import get_llm
+from app.agents.data_agent.prompts import (
+    DATA_AGENT_ROLE,
+    DATA_AGENT_GOAL,
+    DATA_AGENT_BACKSTORY,
+    FULL_PIPELINE_TASK_DESCRIPTION,
+    FULL_PIPELINE_TASK_EXPECTED_OUTPUT,
+    VALIDATE_TASK_DESCRIPTION,
+    VALIDATE_TASK_EXPECTED_OUTPUT,
+    CLEAN_TASK_DESCRIPTION,
+    CLEAN_TASK_EXPECTED_OUTPUT,
+    PREPROCESS_TASK_DESCRIPTION,
+    PREPROCESS_TASK_EXPECTED_OUTPUT,
+    TOOL_DESCRIPTIONS,
+)
 from app.agents.data_agent import tools
 
 logger = get_logger(__name__)
 
 
+def create_data_agent(
+    llm: Optional[Any] = None,
+    allow_delegation: bool = False,
+    verbose: bool = True,
+) -> Agent:
+    """
+    Factory function to instantiate a native CrewAI Data Agent.
+
+    Args:
+        llm: Custom LLM instance. If None, uses the shared centralized get_llm().
+        allow_delegation: Whether the agent can delegate tasks to other agents
+                          in a multi-agent system.
+        verbose: Whether the agent should log its reasoning steps.
+
+    Returns:
+        CrewAI Agent configured with data pipeline tools.
+    """
+    agent_llm = llm or get_llm()
+    agent_tools = tools.get_data_agent_tools()
+
+    return Agent(
+        role=DATA_AGENT_ROLE,
+        goal=DATA_AGENT_GOAL,
+        backstory=DATA_AGENT_BACKSTORY,
+        tools=agent_tools,
+        llm=agent_llm,
+        verbose=verbose,
+        allow_delegation=allow_delegation,
+    )
+
+
+def create_data_pipeline_tasks(
+    agent: Agent,
+    dataset_id: str,
+    workspace_id: str,
+) -> list[Task]:
+    """
+    Create sequential CrewAI Tasks for dataset processing:
+    Validation -> Cleaning -> Preprocessing.
+    """
+    validation_task = Task(
+        description=VALIDATE_TASK_DESCRIPTION.format(
+            dataset_id=dataset_id,
+            workspace_id=workspace_id,
+        ),
+        expected_output=VALIDATE_TASK_EXPECTED_OUTPUT,
+        agent=agent,
+        tools=[tools.validate_dataset_tool],
+    )
+
+    cleaning_task = Task(
+        description=CLEAN_TASK_DESCRIPTION.format(
+            dataset_id=dataset_id,
+            workspace_id=workspace_id,
+        ),
+        expected_output=CLEAN_TASK_EXPECTED_OUTPUT,
+        agent=agent,
+        tools=[tools.clean_dataset_tool],
+    )
+
+    preprocessing_task = Task(
+        description=PREPROCESS_TASK_DESCRIPTION.format(
+            dataset_id=dataset_id,
+            workspace_id=workspace_id,
+        ),
+        expected_output=PREPROCESS_TASK_EXPECTED_OUTPUT,
+        agent=agent,
+        tools=[tools.preprocess_dataset_tool],
+    )
+
+    return [validation_task, cleaning_task, preprocessing_task]
+
+
+def create_data_pipeline_crew(
+    dataset_id: str,
+    workspace_id: str,
+    llm: Optional[Any] = None,
+    agent: Optional[Agent] = None,
+) -> Crew:
+    """
+    Construct a CrewAI Crew dedicated to data pipeline orchestration.
+
+    Args:
+        dataset_id: Dataset to process.
+        workspace_id: Workspace context.
+        llm: Optional LLM override.
+        agent: Optional pre-configured Agent instance.
+
+    Returns:
+        CrewAI Crew ready for kickoff.
+    """
+    data_worker = agent or create_data_agent(llm=llm)
+    tasks = create_data_pipeline_tasks(
+        agent=data_worker,
+        dataset_id=dataset_id,
+        workspace_id=workspace_id,
+    )
+
+    return Crew(
+        agents=[data_worker],
+        tasks=tasks,
+        process=Process.sequential,
+        verbose=True,
+    )
+
+
 class DataAgent:
     """
-    Data Agent that orchestrates the data pipeline.
+    Data Agent service wrapper.
 
-    In Milestone 1, the agent provides a programmatic interface
-    to the pipeline tools. Gemini-based natural language orchestration
-    will be added in Milestone 2.
+    Provides a clean, unified interface for both:
+    - Direct tool execution / deterministic pipelines
+    - CrewAI-based autonomous execution and multi-agent participation
     """
 
     def __init__(self):
@@ -44,20 +166,26 @@ class DataAgent:
             "clean_dataset": tools.clean_dataset,
             "preprocess_dataset": tools.preprocess_dataset,
         }
+        self._crew_agent: Optional[Agent] = None
+
+    def get_crew_agent(self, llm: Optional[Any] = None, allow_delegation: bool = False) -> Agent:
+        """
+        Get or create the native CrewAI Agent instance.
+        """
+        if self._crew_agent is None or llm is not None:
+            self._crew_agent = create_data_agent(llm=llm, allow_delegation=allow_delegation)
+        return self._crew_agent
 
     def execute_tool(self, tool_name: str, **kwargs: Any) -> dict:
         """
-        Execute a named tool with the given arguments.
+        Execute a named tool with the given arguments programmatically.
 
         Args:
             tool_name: Name of the tool to execute.
             **kwargs: Arguments to pass to the tool.
 
         Returns:
-            Tool execution result.
-
-        Raises:
-            ValueError: If tool_name is not recognized.
+            Tool execution result dict.
         """
         if tool_name not in self._tools:
             raise ValueError(
@@ -76,18 +204,8 @@ class DataAgent:
         workspace_id: str,
     ) -> dict:
         """
-        Run the complete pipeline for a dataset:
-        Validate → Clean → Preprocess
-
-        This is the programmatic equivalent of what a Gemini-powered
-        agent would do through natural language orchestration.
-
-        Args:
-            dataset_id: The dataset to process.
-            workspace_id: The workspace context.
-
-        Returns:
-            Pipeline execution summary.
+        Run the complete pipeline for a dataset deterministically:
+        Inspect → Validate → Clean → Preprocess → Summary
         """
         logger.info(f"Data Agent: running full pipeline for dataset={dataset_id}")
 
@@ -161,9 +279,34 @@ class DataAgent:
 
         return results
 
+    def run_crew_pipeline(
+        self,
+        dataset_id: str,
+        workspace_id: str,
+        llm: Optional[Any] = None,
+    ) -> Any:
+        """
+        Run the data pipeline using CrewAI autonomous orchestration.
+
+        Args:
+            dataset_id: The dataset to process.
+            workspace_id: The workspace context.
+            llm: Optional LLM instance.
+
+        Returns:
+            CrewAI CrewOutput result.
+        """
+        crew = create_data_pipeline_crew(
+            dataset_id=dataset_id,
+            workspace_id=workspace_id,
+            llm=llm,
+            agent=self.get_crew_agent(llm=llm),
+        )
+        logger.info(f"Data Agent: kicking off CrewAI data pipeline for dataset={dataset_id}")
+        return crew.kickoff()
+
     def list_tools(self) -> list[dict]:
         """List all available tools with their descriptions."""
-        from app.agents.data_agent.prompts import TOOL_DESCRIPTIONS
         return [
             {"name": name, "description": TOOL_DESCRIPTIONS.get(name, "")}
             for name in self._tools
