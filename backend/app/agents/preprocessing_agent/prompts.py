@@ -33,6 +33,14 @@ into golden, high-signal AI-ready data. You:
 
 # ── CrewAI Task Descriptions & Expected Outputs ───────────────────
 
+VALIDATE_TASK_DESC = (
+    "Run Pydantic v2-based schema validation and business rule checks on dataset '{dataset_id}' in workspace '{workspace_id}'. "
+    "Flag valid records, categorize invalid rows, and compute data quality score."
+)
+VALIDATE_TASK_OUTPUT = (
+    "A validation summary including total records, valid/invalid counts, quality score, and defect logs."
+)
+
 CLEAN_AND_NORMALIZE_TASK_DESC = (
     "Clean and normalize dataset '{dataset_id}' in workspace '{workspace_id}'. "
     "Sanitize valid records, normalize fields, and quarantine dirty/rejected data into 'dirty_data' "
@@ -80,6 +88,7 @@ FULL_PREPROCESSING_PIPELINE_OUTPUT = (
 )
 
 TOOL_DESCRIPTIONS = {
+    "validate_dataset_records": "Run Pydantic v2-based schema validation and business rule checks on dataset records.",
     "clean_and_normalize_dataset": "Clean and normalize valid records while isolating dirty/rejected data in MongoDB.",
     "preprocess_valid_data": "Preprocess valid records into AI-ready ProductSignal records with enriched NLP understanding.",
     "audit_dirty_data": "Audit dirty/rejected data, discard corrupted noise, and flag salvageable records for PM review.",

@@ -1,8 +1,13 @@
 """
 tools.py
 ---------
-Tool functions and CrewAI tool wrappers for the Preprocessing Agent.
-Delegates to backend services while exposing both programmatic and CrewAI interfaces.
+Complete tool suite for the Preprocessing Agent covering:
+1. Ingestion: customer feedback, reviews, support-tickets from CSV/JSON/Excel -> raw storage in MongoDB.
+2. Pydantic Validation: schema validation, numeric bounds, text lengths, business rules.
+3. Cleaning & Normalization: normalizing valid data into cleaned_data and isolating dirty data into dirty_data.
+4. AI Preprocessing: rich understanding, intent detection, keywords -> ai_preprocessed_data.
+5. Dirty Data Audit: separating corrupted noise from salvageable customer feedback.
+6. PM Salvage Promotion: elevating approved salvaged records to production AI data.
 """
 
 from __future__ import annotations
@@ -16,6 +21,8 @@ from app.core.exceptions import NotFoundError
 from app.repositories.dataset_repository import dataset_repository
 from app.repositories.data_repository import data_repository
 from app.repositories.processing_job_repository import processing_job_repository
+from app.services.ingestion.ingestion_service import ingestion_service
+from app.services.validation.validation_service import validation_service
 from app.services.cleaning.cleaning_service import cleaning_service
 from app.services.preprocessing.preprocessing_service import preprocessing_service
 from app.utils.serialization import serialize_document
@@ -25,23 +32,55 @@ logger = get_logger(__name__)
 
 # ── Core Backend Implementations (return dict) ──────────────────────
 
+def ingest_dataset_file(
+    workspace_id: str,
+    product_id: str,
+    source_type: str,
+    filename: str,
+    file_bytes: bytes,
+    uploaded_by: str = "system",
+) -> dict:
+    """
+    Ingest customer feedback, reviews, or support tickets from CSV/JSON/Excel.
+    Parses content and stores raw data in MongoDB raw_data collection.
+    """
+    return ingestion_service.ingest_file(
+        workspace_id=workspace_id,
+        product_id=product_id,
+        source_type=source_type,
+        filename=filename,
+        file_bytes=file_bytes,
+        uploaded_by=uploaded_by,
+    )
+
+
+def validate_dataset_records(dataset_id: str, workspace_id: str) -> dict:
+    """
+    Run Pydantic v2-based schema validation and business rule checks on all raw dataset records.
+    """
+    return validation_service.validate_dataset(dataset_id=dataset_id, workspace_id=workspace_id)
+
+
 def clean_and_normalize_dataset(dataset_id: str, workspace_id: str) -> dict:
     """
-    Clean and normalize valid records, and quarantine dirty/rejected records in MongoDB.
+    Clean and normalize valid records into 'cleaned_data', while quarantining
+    and defect-tagging dirty/rejected records in 'dirty_data' MongoDB collection.
     """
     return cleaning_service.clean_dataset(dataset_id=dataset_id, workspace_id=workspace_id)
 
 
 def preprocess_valid_data(dataset_id: str, workspace_id: str) -> dict:
     """
-    Transform valid cleaned data into deep AI-ready ProductSignals and store in ai_preprocessed_data.
+    Transform valid cleaned data into deep AI-ready ProductSignals with intent tags and keywords.
+    Stores output into dedicated 'ai_preprocessed_data' MongoDB collection.
     """
     return preprocessing_service.preprocess_dataset(dataset_id=dataset_id, workspace_id=workspace_id)
 
 
 def audit_dirty_data(dataset_id: str, workspace_id: str) -> dict:
     """
-    Audit dirty/rejected data, discard corrupted noise, and flag salvageable records for PM review.
+    Audit quarantined dirty records. Discard pure corrupted noise, identify salvageable
+    customer feedback missing metadata, and package candidates for PM review in 'salvaged_data'.
     """
     return preprocessing_service.audit_and_salvage_dirty_data(dataset_id=dataset_id, workspace_id=workspace_id)
 
@@ -53,7 +92,8 @@ def promote_salvaged_data(
     reviewer: str = "ProductManager",
 ) -> dict:
     """
-    Promote PM-approved salvaged records into the primary ai_preprocessed_data collection.
+    Promote PM-approved salvaged records from 'salvaged_data' into the primary
+    'ai_preprocessed_data' collection for downstream intelligence agents.
     """
     return preprocessing_service.promote_salvaged_records(
         dataset_id=dataset_id,
@@ -65,7 +105,7 @@ def promote_salvaged_data(
 
 def get_dataset_usability_report(dataset_id: str) -> dict:
     """
-    Get a full status report on dataset health: valid count, dirty count, salvageable count, and AI readiness.
+    Get full dataset health report: valid count, dirty count, salvageable count, and AI readiness.
     """
     dataset = dataset_repository.find_by_id(dataset_id)
     if not dataset:
@@ -101,7 +141,7 @@ def get_dataset_usability_report(dataset_id: str) -> dict:
 
 
 def inspect_dataset(dataset_id: str) -> dict:
-    """Inspect dataset metadata and basic counts."""
+    """Inspect dataset metadata and stage counts."""
     dataset = dataset_repository.find_by_id(dataset_id)
     if not dataset:
         raise NotFoundError("Dataset", dataset_id)
@@ -115,7 +155,7 @@ def inspect_dataset(dataset_id: str) -> dict:
 
 
 def get_job_status(job_id: str) -> dict:
-    """Check status and progress of a processing job."""
+    """Check progress of a background job."""
     job = processing_job_repository.find_by_id(job_id)
     if not job:
         raise NotFoundError("ProcessingJob", job_id)
@@ -123,6 +163,20 @@ def get_job_status(job_id: str) -> dict:
 
 
 # ── CrewAI Tool Wrappers ──────────────────────────────────────────
+
+@tool("Validate Dataset Records")
+def validate_dataset_records_tool(dataset_id: str, workspace_id: str) -> str:
+    """
+    Run Pydantic-based schema validation and business rule checks on all records of a dataset.
+    Identifies valid records vs defective records and computes data quality scores.
+    """
+    try:
+        res = validate_dataset_records(dataset_id, workspace_id)
+        return json.dumps(res, default=str)
+    except Exception as e:
+        logger.error(f"Error in validate_dataset_records_tool: {e}")
+        return json.dumps({"error": str(e), "dataset_id": dataset_id})
+
 
 @tool("Clean and Normalize Dataset")
 def clean_and_normalize_dataset_tool(dataset_id: str, workspace_id: str) -> str:
@@ -219,6 +273,7 @@ def get_job_status_tool(job_id: str) -> str:
 def get_preprocessing_agent_tools() -> list[Any]:
     """Return all CrewAI tools assigned to the Preprocessing Agent."""
     return [
+        validate_dataset_records_tool,
         clean_and_normalize_dataset_tool,
         preprocess_valid_data_tool,
         audit_dirty_data_tool,
@@ -227,4 +282,3 @@ def get_preprocessing_agent_tools() -> list[Any]:
         inspect_dataset_tool,
         get_job_status_tool,
     ]
-

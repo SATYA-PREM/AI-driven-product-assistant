@@ -17,7 +17,7 @@ from app.core.constants import Permission, UserRole
 # ──────────────────────────────────────────────
 
 ROLE_PERMISSIONS: dict[UserRole, set[Permission]] = {
-    UserRole.PM: {
+    UserRole.PRODUCT_MANAGER: {
         # Workspace
         Permission.CREATE_WORKSPACE,
         Permission.VIEW_WORKSPACE,
@@ -43,6 +43,47 @@ ROLE_PERMISSIONS: dict[UserRole, set[Permission]] = {
         Permission.COMPLETE_TASK,
         Permission.VIEW_TASKS,
     },
+    UserRole.DATA_ENGINEER: {
+        # Workspace (read-only)
+        Permission.VIEW_WORKSPACE,
+        # Product (read-only)
+        Permission.VIEW_PRODUCT,
+        # Data (full pipeline control)
+        Permission.UPLOAD_DATASET,
+        Permission.VIEW_DATASET,
+        Permission.DELETE_DATASET,
+        Permission.RUN_PIPELINE,
+        # Intelligence & Tasks
+        Permission.VIEW_INTELLIGENCE,
+        Permission.COMPLETE_TASK,
+        Permission.VIEW_TASKS,
+    },
+    UserRole.PRODUCT_DESIGNER: {
+        Permission.VIEW_WORKSPACE,
+        Permission.VIEW_PRODUCT,
+        Permission.VIEW_DATASET,
+        Permission.VIEW_INTELLIGENCE,
+        Permission.COMPLETE_TASK,
+        Permission.VIEW_TASKS,
+    },
+    UserRole.ENGINEERING_LEAD: {
+        Permission.VIEW_WORKSPACE,
+        Permission.VIEW_PRODUCT,
+        Permission.VIEW_DATASET,
+        Permission.VIEW_INTELLIGENCE,
+        Permission.ASSIGN_TASKS,
+        Permission.COMPLETE_TASK,
+        Permission.VIEW_TASKS,
+    },
+    UserRole.CUSTOMER_SUCCESS: {
+        Permission.VIEW_WORKSPACE,
+        Permission.VIEW_PRODUCT,
+        Permission.UPLOAD_DATASET,
+        Permission.VIEW_DATASET,
+        Permission.VIEW_INTELLIGENCE,
+        Permission.COMPLETE_TASK,
+        Permission.VIEW_TASKS,
+    },
     UserRole.MEMBER: {
         # Workspace (read-only)
         Permission.VIEW_WORKSPACE,
@@ -57,6 +98,10 @@ ROLE_PERMISSIONS: dict[UserRole, set[Permission]] = {
         Permission.VIEW_TASKS,
     },
 }
+
+# Link PM alias to PRODUCT_MANAGER permissions
+ROLE_PERMISSIONS[UserRole.PM] = ROLE_PERMISSIONS[UserRole.PRODUCT_MANAGER]
+
 
 
 def has_permission(role: UserRole | str, permission: Permission) -> bool:

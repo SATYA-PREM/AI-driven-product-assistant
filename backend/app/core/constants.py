@@ -16,7 +16,14 @@ from enum import Enum
 # ──────────────────────────────────────────────
 
 class UserRole(str, Enum):
-    """Roles a user can hold within a workspace."""
+    """5 primary roles in the Product Intelligence platform + aliases."""
+    PRODUCT_MANAGER = "product_manager"
+    DATA_ENGINEER = "data_engineer"
+    PRODUCT_DESIGNER = "product_designer"
+    ENGINEERING_LEAD = "engineering_lead"
+    CUSTOMER_SUCCESS = "customer_success"
+
+    # Aliases
     PM = "pm"
     MEMBER = "member"
 

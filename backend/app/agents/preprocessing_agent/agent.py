@@ -4,11 +4,12 @@ agent.py
 CrewAI Preprocessing Agent for the Product Intelligence platform.
 
 Orchestrates the entire cleaning, normalization, and AI preprocessing lifecycle:
-1. Normalizes valid data records into 'cleaned_data'.
-2. Isolates dirty, corrupted, or rejected data into 'dirty_data'.
-3. Preprocesses valid data into deep AI-ready ProductSignals in 'ai_preprocessed_data'.
-4. Audits dirty data to recover valuable customer feedback for PM review.
-5. Promotes PM-approved salvaged data into the production AI signal stream.
+1. Validates records with Pydantic v2 and enforces business rules.
+2. Normalizes valid data records into 'cleaned_data'.
+3. Isolates dirty, corrupted, or rejected data into 'dirty_data'.
+4. Preprocesses valid data into deep AI-ready ProductSignals in 'ai_preprocessed_data'.
+5. Audits dirty data to recover valuable customer feedback for PM review.
+6. Promotes PM-approved salvaged data into the production AI signal stream.
 """
 
 from __future__ import annotations
@@ -23,6 +24,8 @@ from app.agents.preprocessing_agent.prompts import (
     PREPROCESSING_AGENT_ROLE,
     PREPROCESSING_AGENT_GOAL,
     PREPROCESSING_AGENT_BACKSTORY,
+    VALIDATE_TASK_DESC,
+    VALIDATE_TASK_OUTPUT,
     CLEAN_AND_NORMALIZE_TASK_DESC,
     CLEAN_AND_NORMALIZE_TASK_OUTPUT,
     PREPROCESS_VALID_TASK_DESC,
@@ -65,10 +68,20 @@ def create_preprocessing_tasks(
 ) -> list[Task]:
     """
     Create sequential CrewAI Tasks for the Preprocessing Agent:
-    1. Clean and normalize valid data & quarantine dirty data.
-    2. Preprocess valid data into AI-ready ProductSignals.
-    3. Audit dirty data for recoverable insights and PM validation.
+    1. Pydantic validation: validate schema & business rules.
+    2. Clean and normalize valid data & quarantine dirty data.
+    3. Preprocess valid data into AI-ready ProductSignals.
+    4. Audit dirty data for recoverable insights and PM validation.
     """
+    validate_task = Task(
+        description=VALIDATE_TASK_DESC.format(
+            dataset_id=dataset_id, workspace_id=workspace_id
+        ),
+        expected_output=VALIDATE_TASK_OUTPUT,
+        agent=agent,
+        tools=[tools.validate_dataset_records_tool],
+    )
+
     clean_task = Task(
         description=CLEAN_AND_NORMALIZE_TASK_DESC.format(
             dataset_id=dataset_id, workspace_id=workspace_id
@@ -96,7 +109,7 @@ def create_preprocessing_tasks(
         tools=[tools.audit_dirty_data_tool, tools.get_dataset_usability_report_tool],
     )
 
-    return [clean_task, preprocess_task, audit_dirty_task]
+    return [validate_task, clean_task, preprocess_task, audit_dirty_task]
 
 
 def create_preprocessing_crew(
@@ -133,6 +146,7 @@ class PreprocessingAgent:
     def __init__(self):
         self.has_gemini = bool(settings.GEMINI_API_KEY)
         self._tools = {
+            "validate_dataset_records": tools.validate_dataset_records,
             "clean_and_normalize_dataset": tools.clean_and_normalize_dataset,
             "preprocess_valid_data": tools.preprocess_valid_data,
             "audit_dirty_data": tools.audit_dirty_data,
@@ -165,10 +179,11 @@ class PreprocessingAgent:
     ) -> dict:
         """
         Run the complete programmatic preprocessing pipeline:
-        1. Clean and normalize valid data & quarantine dirty data.
-        2. Preprocess valid data into deep AI ProductSignals.
-        3. Audit dirty data for recoverable customer feedback.
-        4. Produce dataset usability report.
+        1. Run Pydantic v2-based validation and business rule checks.
+        2. Clean and normalize valid data & quarantine dirty data.
+        3. Preprocess valid data into deep AI ProductSignals.
+        4. Audit dirty data for recoverable customer feedback.
+        5. Produce dataset usability report.
         """
         logger.info(f"Preprocessing Agent: running full pipeline for dataset={dataset_id}")
 
@@ -180,7 +195,15 @@ class PreprocessingAgent:
         }
 
         try:
-            # Step 1: Clean & Normalize valid records + isolate dirty records
+            # Step 1: Pydantic Validation
+            val_res = self.execute_tool(
+                "validate_dataset_records",
+                dataset_id=dataset_id,
+                workspace_id=workspace_id,
+            )
+            results["steps"]["validation"] = val_res
+
+            # Step 2: Clean & Normalize valid records + isolate dirty records
             clean_res = self.execute_tool(
                 "clean_and_normalize_dataset",
                 dataset_id=dataset_id,
@@ -188,7 +211,7 @@ class PreprocessingAgent:
             )
             results["steps"]["clean_and_normalize"] = clean_res
 
-            # Step 2: Preprocess valid data into AI ProductSignals
+            # Step 3: Preprocess valid data into AI ProductSignals
             preprocess_res = self.execute_tool(
                 "preprocess_valid_data",
                 dataset_id=dataset_id,
@@ -196,7 +219,7 @@ class PreprocessingAgent:
             )
             results["steps"]["ai_preprocessing"] = preprocess_res
 
-            # Step 3: Audit dirty/rejected data for salvageable feedback
+            # Step 4: Audit dirty/rejected data for salvageable feedback
             audit_res = self.execute_tool(
                 "audit_dirty_data",
                 dataset_id=dataset_id,
@@ -204,7 +227,7 @@ class PreprocessingAgent:
             )
             results["steps"]["dirty_data_audit"] = audit_res
 
-            # Step 4: Generate overall usability report
+            # Step 5: Generate overall usability report
             usability = self.execute_tool(
                 "get_dataset_usability_report",
                 dataset_id=dataset_id,
@@ -262,4 +285,3 @@ class PreprocessingAgent:
 
 
 preprocessing_agent = PreprocessingAgent()
-

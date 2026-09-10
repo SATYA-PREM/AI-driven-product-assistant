@@ -23,10 +23,12 @@ def register(
     request: RegisterRequest
 ):
 
+    role_val = request.role.value if hasattr(request.role, "value") else (request.role or "product_manager")
     return AuthService.register(
         name=request.name,
         email=request.email,
-        password=request.password
+        password=request.password,
+        role=role_val
     )
 
 

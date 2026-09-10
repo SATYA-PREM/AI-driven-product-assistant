@@ -1,98 +1,76 @@
 from __future__ import annotations
-from datetime import datetime, timezone
-from typing import Optional
-
 from app.models.workflow import WorkflowModel
 from app.repositories.workflow_repository import workflow_repository
-from app.services.workflow.workflow_validator import workflow_validator
-from app.services.workflow.workflow_state import workflow_state_machine
+from app.services.workflow.workflow_validator import validate_step_transition
+from app.services.workflow.workflow_state import get_step_order
 from app.core.constants import WorkflowStepStatus, WorkflowStep
 from app.core.exceptions import NotFoundError
-from app.utils.serialization import serialize_document
 
+def create_workflow(workspace_id: str, product_id: str, dataset_id: str) -> dict:
+    """Create a new workflow tracking document."""
+    doc = WorkflowModel.create_document(
+        workspace_id=workspace_id,
+        product_id=product_id,
+        dataset_id=dataset_id
+    )
+    # Initialize steps
+    order = get_step_order()
+    doc["steps"] = {
+        step.name: {"status": WorkflowStepStatus.NOT_STARTED.name, "metadata": {}}
+        for step in order
+    }
+    doc["steps"][order[0].name]["status"] = WorkflowStepStatus.READY.name
+    doc["current_step"] = order[0].name
+    doc["progress_percentage"] = 0.0
+    
+    return workflow_repository.create(doc)
 
-class WorkflowService:
-    """Service for managing workspace and dataset workflow state progression."""
+def get_workflow(workflow_id: str) -> dict:
+    """Get workflow by ID."""
+    workflow = workflow_repository.get_by_id(workflow_id)
+    if not workflow:
+        raise NotFoundError(f"Workflow {workflow_id} not found")
+    return workflow
 
-    @staticmethod
-    def create_workflow(workspace_id: str, product_id: str = "", dataset_id: str = "") -> dict:
-        """Create a new workflow tracking document."""
-        doc = WorkflowModel.create_document(
-            workspace_id=workspace_id,
-            product_id=product_id,
-            dataset_id=dataset_id
-        )
-        if doc["steps"]:
-            doc["steps"][0]["status"] = WorkflowStepStatus.READY.value
-        workflow_id = workflow_repository.create(doc)
-        doc["_id"] = workflow_id
-        return serialize_document(doc)
+def get_workspace_workflow(workspace_id: str, dataset_id: str) -> dict | None:
+    """Get workflow by workspace and dataset."""
+    return workflow_repository.get_by_workspace_and_dataset(workspace_id, dataset_id)
 
-    @staticmethod
-    def get_workflow(workflow_id: str) -> dict:
-        """Get workflow by ID."""
-        workflow = workflow_repository.get_by_id(workflow_id)
-        if not workflow:
-            raise NotFoundError("Workflow", workflow_id)
-        return serialize_document(workflow)
+def advance_step(workflow_id: str, step_name: str, status: str, metadata: dict = None) -> dict:
+    """Advance workflow step."""
+    workflow = get_workflow(workflow_id)
+    
+    is_valid, err = validate_step_transition(workflow, step_name, status)
+    if not is_valid:
+        raise ValueError(err)
+        
+    workflow["steps"][step_name]["status"] = status
+    if metadata:
+        workflow["steps"][step_name]["metadata"] = metadata
+        
+    workflow["progress_percentage"] = calculate_progress(workflow)
+    
+    # Update current_step logic
+    if status == WorkflowStepStatus.COMPLETED.name:
+        order = get_step_order()
+        completed = {
+            WorkflowStep[s] for s, data in workflow["steps"].items() 
+            if data.get("status") == WorkflowStepStatus.COMPLETED.name
+        }
+        for s in order:
+            if s not in completed:
+                workflow["current_step"] = s.name
+                workflow["steps"][s.name]["status"] = WorkflowStepStatus.READY.name
+                break
+                
+    workflow_repository.update(workflow_id, workflow)
+    return workflow
 
-    @staticmethod
-    def get_workspace_workflow(workspace_id: str, dataset_id: Optional[str] = None) -> dict:
-        """Get workflow by workspace and dataset, auto-creating initial tracking if absent."""
-        workflow = None
-        if dataset_id:
-            workflow = workflow_repository.find_by_dataset(workspace_id, dataset_id)
-        if not workflow:
-            workflows = workflow_repository.find_by_workspace(workspace_id)
-            if workflows:
-                workflow = workflows[0]
-
-        if not workflow:
-            workflow = WorkflowService.create_workflow(workspace_id=workspace_id, dataset_id=dataset_id or "")
-
-        return serialize_document(workflow)
-
-    @staticmethod
-    def advance_step(workflow_id: str, step_name: str, status: str, metadata: dict = None) -> dict:
-        """Advance workflow step."""
-        workflow = workflow_repository.get_by_id(workflow_id)
-        if not workflow:
-            raise NotFoundError("Workflow", workflow_id)
-
-        now = datetime.now(timezone.utc)
-        steps = workflow.get("steps", [])
-        for step in steps:
-            if step.get("name") == step_name:
-                step["status"] = status
-                if status == WorkflowStepStatus.IN_PROGRESS.value and not step.get("started_at"):
-                    step["started_at"] = now
-                elif status == WorkflowStepStatus.COMPLETED.value:
-                    step["completed_at"] = now
-                if metadata:
-                    step["metadata"] = metadata
-
-        progress = WorkflowService.calculate_progress(steps)
-        workflow["progress_percentage"] = progress
-        workflow["updated_at"] = now
-
-        # Advance next step to READY
-        if status == WorkflowStepStatus.COMPLETED.value:
-            for step in steps:
-                if step.get("status") == WorkflowStepStatus.NOT_STARTED.value:
-                    step["status"] = WorkflowStepStatus.READY.value
-                    workflow["current_step"] = step.get("name")
-                    break
-
-        workflow_repository.update(workflow_id, workflow)
-        return serialize_document(workflow)
-
-    @staticmethod
-    def calculate_progress(steps: list[dict]) -> float:
-        """Calculate completion percentage from steps list."""
-        if not steps:
-            return 0.0
-        completed = sum(1 for s in steps if s.get("status") in [WorkflowStepStatus.COMPLETED.value, "completed"])
-        return round((completed / len(steps)) * 100.0, 2)
-
-
-workflow_service = WorkflowService()
+def calculate_progress(workflow: dict) -> float:
+    """Calculate completion percentage."""
+    steps = workflow.get("steps", {})
+    if not steps:
+        return 0.0
+        
+    completed = sum(1 for s in steps.values() if s.get("status") == WorkflowStepStatus.COMPLETED.name)
+    return (completed / len(steps)) * 100.0

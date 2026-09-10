@@ -4,8 +4,7 @@ crew.py
 Multi-Agent System Coordinator for Product Intelligence using CrewAI.
 
 Orchestrates collaboration between specialized agents:
-- PreprocessingAgent (Cleaning, normalization, dirty data quarantine, AI signals, PM salvage)
-- DataAgent (Inspects, validates, cleans, and standardizes data)
+- PreprocessingAgent (Ingestion, Pydantic validation, cleaning, normalization, dirty data quarantine, AI signals, PM salvage)
 - Future: InsightsAgent (Sentiment, themes, and pain-point extraction)
 - Future: ProductStrategyAgent (Feature prioritization and roadmap suggestions)
 
@@ -19,7 +18,6 @@ from crewai import Agent, Task, Crew, Process
 
 from app.core.logging import get_logger
 from app.agents.llm import get_llm
-from app.agents.data_agent.agent import create_data_agent, create_data_pipeline_tasks
 from app.agents.preprocessing_agent.agent import (
     create_preprocessing_agent,
     create_preprocessing_tasks,
@@ -33,7 +31,7 @@ class ProductIntelligenceCrew:
     Multi-Agent Crew orchestrator for the Product Intelligence system.
 
     Manages agent lifecycle, task assignment, and crew kickoff across
-    one or more specialized CrewAI agents.
+    specialized CrewAI agents.
     """
 
     def __init__(self, llm: Optional[Any] = None):
@@ -42,13 +40,8 @@ class ProductIntelligenceCrew:
         self._initialize_default_agents()
 
     def _initialize_default_agents(self) -> None:
-        """Initialize core system agents."""
+        """Initialize core Preprocessing Agent."""
         self._agents["preprocessing_agent"] = create_preprocessing_agent(
-            llm=self.llm,
-            allow_delegation=False,
-            verbose=True,
-        )
-        self._agents["data_agent"] = create_data_agent(
             llm=self.llm,
             allow_delegation=False,
             verbose=True,
@@ -89,28 +82,6 @@ class ProductIntelligenceCrew:
         )
         return Crew(
             agents=[agent],
-            tasks=tasks,
-            process=Process.sequential,
-            verbose=True,
-        )
-
-    def build_data_pipeline_crew(
-        self,
-        dataset_id: str,
-        workspace_id: str,
-    ) -> Crew:
-        """
-        Build a crew focused on standard data validation, cleaning, and preprocessing.
-        """
-        data_agent = self._agents["data_agent"]
-        tasks = create_data_pipeline_tasks(
-            agent=data_agent,
-            dataset_id=dataset_id,
-            workspace_id=workspace_id,
-        )
-
-        return Crew(
-            agents=[data_agent],
             tasks=tasks,
             process=Process.sequential,
             verbose=True,

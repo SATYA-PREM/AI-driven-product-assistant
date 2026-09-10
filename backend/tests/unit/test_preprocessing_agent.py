@@ -1,5 +1,5 @@
 """
-Unit tests for CrewAI Preprocessing Agent, dirty data quarantine, and PM salvage promotion.
+Unit tests for CrewAI Preprocessing Agent, Pydantic validation, dirty data quarantine, and PM salvage promotion.
 """
 
 from unittest.mock import MagicMock, patch
@@ -10,6 +10,7 @@ from app.agents.preprocessing_agent import (
     create_preprocessing_crew,
     get_preprocessing_agent_tools,
 )
+from app.services.validation.pydantic_validator import pydantic_validator
 from app.services.cleaning.cleaning_service import CleaningService
 from app.services.preprocessing.preprocessing_service import PreprocessingService
 
@@ -19,13 +20,14 @@ def test_preprocessing_agent_creation():
     assert agent is not None
     assert "Preprocessing" in agent.role
     assert "ProductSignals" in agent.goal
-    assert len(agent.tools) == 7
+    assert len(agent.tools) == 8
 
 
 def test_preprocessing_tools_listing():
     tools = get_preprocessing_agent_tools()
-    assert len(tools) == 7
+    assert len(tools) == 8
     names = [t.name for t in tools]
+    assert "Validate Dataset Records" in names
     assert "Clean and Normalize Dataset" in names
     assert "Preprocess Valid Data" in names
     assert "Audit Dirty Data" in names
@@ -33,13 +35,47 @@ def test_preprocessing_tools_listing():
     assert "Get Dataset Usability Report" in names
 
 
+def test_pydantic_validation_feedback_valid():
+    valid_data = {
+        "customer_id": "C101",
+        "rating": 5,
+        "feedback": "This product saved us hours of manual work.",
+        "date": "2026-09-01",
+    }
+    is_valid, errors, _ = pydantic_validator.validate_record(valid_data, source_type="feedback")
+    assert is_valid is True
+    assert len(errors) == 0
+
+
+def test_pydantic_validation_feedback_invalid_rating():
+    invalid_data = {
+        "customer_id": "C101",
+        "rating": 10,  # Invalid: > 5
+        "feedback": "Great tool",
+    }
+    is_valid, errors, _ = pydantic_validator.validate_record(invalid_data, source_type="feedback")
+    assert is_valid is False
+    assert any("rating" in err.lower() for err in errors)
+
+
+def test_pydantic_validation_feedback_missing_required():
+    invalid_data = {
+        "rating": 4,
+        "feedback": "Missing customer id",
+    }
+    is_valid, errors, _ = pydantic_validator.validate_record(invalid_data, source_type="feedback")
+    assert is_valid is False
+    assert any("customer_id" in err.lower() for err in errors)
+
+
 def test_preprocessing_agent_tasks():
     agent = create_preprocessing_agent()
     tasks = create_preprocessing_tasks(agent, "test_ds", "test_ws")
-    assert len(tasks) == 3
+    assert len(tasks) == 4
     assert "test_ds" in tasks[0].description
     assert "test_ds" in tasks[1].description
     assert "test_ds" in tasks[2].description
+    assert "test_ds" in tasks[3].description
 
 
 @patch("app.repositories.dataset_repository.dataset_repository.get_by_id")
@@ -57,7 +93,6 @@ def test_clean_and_quarantine_dirty_data(
     mock_get_ds,
 ):
     mock_get_ds.return_value = {"_id": "ds1", "source_type": "feedback", "product_id": "p1"}
-    # Record 1 valid, Record 2 missing field with good text, Record 3 empty/corrupted
     mock_get_val.return_value = {
         "record_results": [
             {"row_number": 1, "status": "valid", "errors": []},
@@ -77,10 +112,8 @@ def test_clean_and_quarantine_dirty_data(
 
     assert res["cleaned_count"] == 1
     assert res["dirty_count"] == 2
-    assert res["salvageable_count"] == 1  # Record 2 has 44 chars of actionable feedback
-    assert res["corrupted_count"] == 1    # Record 3 has empty feedback
-
-    # Verify both cleaned and dirty repositories were called
+    assert res["salvageable_count"] == 1
+    assert res["corrupted_count"] == 1
     assert mock_insert_cleaned.called
     assert mock_insert_dirty.called
 
@@ -152,4 +185,3 @@ def test_pm_promotion_of_salvaged_data(
     assert "ai_preprocessed_data" in res["destination_collections"]
     assert mock_update_status.called
     assert mock_insert_ai.called
-
