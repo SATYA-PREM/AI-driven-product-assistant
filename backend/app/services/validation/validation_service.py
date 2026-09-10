@@ -41,7 +41,9 @@ class ValidationService:
         for idx, record in enumerate(raw_records, start=1):
             record_id = str(record.get("_id", f"rec_{idx}"))
             row_num = record.get("row_number", idx)
-            data = record.get("original_record") or record.get("data") or record
+            raw_data = record.get("original_record") or record.get("data") or record
+            from app.services.ingestion.header_adapter import adapt_record_headers
+            data = adapt_record_headers(raw_data, fallback_idx=row_num)
 
             is_pydantic_valid, pydantic_errors, pydantic_warnings = pydantic_validator.validate_record(data, source_type)
             is_schema_valid, schema_errors = schema_validator.validate_schema(data, source_type)

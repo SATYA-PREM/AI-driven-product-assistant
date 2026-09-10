@@ -174,6 +174,13 @@ All 44 operations across 19 tags are accessible interactively in Swagger UI:
 * `GET /api/v1/data/datasets/{dataset_id}/raw`: Query raw stored records.
 * `GET /api/v1/data/datasets/{dataset_id}/export`: Export dataset.
 
+**Canonical Enterprise CSV Format**:
+```csv
+feedback_id,feedback_date,customer_segment,platform,module,feedback_text,browser_or_client,device_or_os,country,source,customer_type,rating,created_at
+FB001,2026-02-01,Enterprise,Web App,Checkout,"I clicked pay twice because the first click looked like nothing happened...",Chrome 131,Windows 11,USA,Email,Returning,2,2026-02-01T09:12:00Z
+```
+*Validated via Pydantic v2 with granular business rules, date parsing, numeric rating constraints (1–5), and preservation of all product dimensions (`module`, `platform`, `customer_segment`, `country`, `device_or_os`, `source`, `customer_type`).*
+
 ### 2. Pydantic Validation (`/api/v1/validation`)
 * `POST /api/v1/validation/validate`: Run Pydantic v2 schema & business rule validation.
 * `GET /api/v1/validation/{dataset_id}`: Retrieve validation quality score & errors.

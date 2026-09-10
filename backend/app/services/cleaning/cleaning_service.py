@@ -51,9 +51,13 @@ class CleaningService:
             valid_raw_records = raw_records
             invalid_raw_records = []
 
-        data_list = [r.get("original_record") or r.get("data") or r for r in valid_raw_records]
+        from app.services.ingestion.header_adapter import adapt_record_headers
+        data_list = [
+            adapt_record_headers(r.get("original_record") or r.get("data") or r, fallback_idx=r.get("row_number", 1))
+            for r in valid_raw_records
+        ]
 
-        text_field = "feedback"
+        text_field = "feedback_text" if any("feedback_text" in d for d in data_list) else "feedback"
         if source_type.lower() == "review":
             text_field = "review_text"
         elif source_type.lower() == "support_ticket":

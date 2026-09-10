@@ -72,6 +72,7 @@ class DatasetStatus(str, Enum):
     CLEANED = "cleaned"
     PREPROCESSING = "preprocessing"
     PREPROCESSED = "preprocessed"
+    PROCESSED = "preprocessed"
     READY = "ready"
     FAILED = "failed"
 

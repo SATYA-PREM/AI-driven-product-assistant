@@ -74,3 +74,23 @@ def calculate_progress(workflow: dict) -> float:
         
     completed = sum(1 for s in steps.values() if s.get("status") == WorkflowStepStatus.COMPLETED.name)
     return (completed / len(steps)) * 100.0
+
+
+class WorkflowService:
+    def create_workflow(self, workspace_id: str, product_id: str, dataset_id: str) -> dict:
+        return create_workflow(workspace_id, product_id, dataset_id)
+
+    def get_workflow(self, workflow_id: str) -> dict:
+        return get_workflow(workflow_id)
+
+    def get_workspace_workflow(self, workspace_id: str, dataset_id: str = None) -> dict | None:
+        return get_workspace_workflow(workspace_id, dataset_id)
+
+    def advance_step(self, workflow_id: str, step_name: str, status: str, metadata: dict = None) -> dict:
+        return advance_step(workflow_id, step_name, status, metadata)
+
+    def calculate_progress(self, workflow: dict) -> float:
+        return calculate_progress(workflow)
+
+
+workflow_service = WorkflowService()

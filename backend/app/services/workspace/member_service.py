@@ -40,7 +40,14 @@ class MemberService:
         member_doc["added_by"] = ObjectId(added_by_user_id) if ObjectId.is_valid(added_by_user_id) else added_by_user_id
 
         workspace_members_collection.insert_one(member_doc)
-        return serialize_document(member_doc)
+        serialized = serialize_document(member_doc)
+        user_name = user.get("name", "Team Member")
+        user_email = user.get("email", email)
+        serialized["name"] = user_name
+        serialized["email"] = user_email
+        serialized["user_name"] = user_name
+        serialized["user_email"] = user_email
+        return serialized
 
     @staticmethod
     def list_members(workspace_id: str, skip: int = 0, limit: int = 100) -> list[dict]:
@@ -59,15 +66,30 @@ class MemberService:
                     "as": "user_info"
                 }
             },
-            {"$unwind": "$user_info"}
+            {"$unwind": {"path": "$user_info", "preserveNullAndEmptyArrays": True}}
         ]
         
         members = list(workspace_members_collection.aggregate(pipeline))
         results = []
         for m in members:
             m_serialized = serialize_document(m)
-            m_serialized["user_name"] = m["user_info"].get("name")
-            m_serialized["user_email"] = m["user_info"].get("email")
+            u_info = m.get("user_info") or {}
+            
+            # Fallback if lookup empty
+            if not u_info and m.get("user_id"):
+                uid_str = str(m["user_id"])
+                u_doc = user_repository.get_by_id(uid_str)
+                if u_doc:
+                    u_info = u_doc
+
+            name_val = u_info.get("name") or m.get("name") or "Team Member"
+            email_val = u_info.get("email") or m.get("email") or ""
+
+            m_serialized["name"] = name_val
+            m_serialized["email"] = email_val
+            m_serialized["user_name"] = name_val
+            m_serialized["user_email"] = email_val
+
             if "user_info" in m_serialized:
                 del m_serialized["user_info"]
             results.append(m_serialized)
@@ -88,7 +110,21 @@ class MemberService:
         
         if not result:
             raise NotFoundError(f"Member with user_id {user_id} not found in workspace.")
-        return serialize_document(result)
+            
+        serialized = serialize_document(result)
+        user = user_repository.get_by_id(str(user_id))
+        if user:
+            serialized["name"] = user.get("name", "Team Member")
+            serialized["email"] = user.get("email", "")
+            serialized["user_name"] = user.get("name", "Team Member")
+            serialized["user_email"] = user.get("email", "")
+        else:
+            serialized["name"] = serialized.get("name") or "Team Member"
+            serialized["email"] = serialized.get("email") or ""
+            serialized["user_name"] = serialized["name"]
+            serialized["user_email"] = serialized["email"]
+
+        return serialized
 
     @staticmethod
     def remove_member(workspace_id: str, user_id: str) -> bool:

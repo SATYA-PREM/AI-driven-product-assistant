@@ -9,7 +9,15 @@ def handle_missing_values(records: list[dict], source_type: str) -> list[dict]:
     
     for record in records:
         for field in required_fields:
-            if not record.get(field):
+            val = record.get(field)
+            if field == "customer_id" and not val:
+                val = record.get("feedback_id")
+            elif field == "feedback" and not val:
+                val = record.get("feedback_text")
+            elif field == "date" and not val:
+                val = record.get("feedback_date") or record.get("created_at")
+
+            if not val:
                 record["_missing_required"] = True
                 
         # Optional fields handling could be explicit, but dict.get handles missing by returning None

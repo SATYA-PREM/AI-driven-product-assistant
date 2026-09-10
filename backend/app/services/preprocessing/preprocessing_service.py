@@ -48,7 +48,7 @@ class PreprocessingService:
 
             # Text preprocessing
             text_val = ""
-            for k in ["feedback", "review_text", "description", "text"]:
+            for k in ["feedback_text", "feedback", "review_text", "description", "text"]:
                 if k in data and data[k]:
                     text_val = preprocess_text(str(data[k]))
                     data[k] = text_val
@@ -72,13 +72,13 @@ class PreprocessingService:
             # Deep AI-ready ProductSignal
             intent = "general_feedback"
             low_text = text_val.lower()
-            if any(w in low_text for w in ["bug", "crash", "error", "broken", "issue", "fail"]):
+            if any(w in low_text for w in ["bug", "crash", "error", "broken", "issue", "fail", "timed out", "slow"]):
                 intent = "bug_report"
-            elif any(w in low_text for w in ["would love", "please add", "feature", "suggest", "wish"]):
+            elif any(w in low_text for w in ["would love", "please add", "feature", "suggest", "wish", "easier if"]):
                 intent = "feature_request"
-            elif any(w in low_text for w in ["love", "great", "excellent", "awesome", "amazing"]):
+            elif any(w in low_text for w in ["love", "great", "excellent", "awesome", "amazing", "useful", "straightforward"]):
                 intent = "praise"
-            elif any(w in low_text for w in ["cancel", "churn", "refund", "leaving", "terrible"]):
+            elif any(w in low_text for w in ["cancel", "churn", "refund", "leaving", "terrible", "old address"]):
                 intent = "churn_risk"
 
             ai_signal = {
@@ -92,9 +92,19 @@ class PreprocessingService:
                 "intent": intent,
                 "features": features,
                 "rating": structured.get("rating"),
+                "module": data.get("module"),
+                "platform": data.get("platform"),
+                "customer_segment": data.get("customer_segment"),
+                "country": data.get("country"),
+                "source": data.get("source"),
+                "customer_type": data.get("customer_type"),
+                "browser_or_client": data.get("browser_or_client"),
+                "device_or_os": data.get("device_or_os"),
                 "is_salvaged": False,
                 "created_at": datetime.now(timezone.utc),
             }
+            # Clean None values
+            ai_signal = {k: v for k, v in ai_signal.items() if v is not None}
             ai_signal_docs.append(ai_signal)
 
         if processed_docs:
@@ -102,7 +112,7 @@ class PreprocessingService:
         if ai_signal_docs:
             data_repository.insert_ai_preprocessed_records(ai_signal_docs)
 
-        dataset_repository.update_status(dataset_id, DatasetStatus.PROCESSED.value)
+        dataset_repository.update_status(dataset_id, DatasetStatus.PREPROCESSED.value)
 
         return {
             "dataset_id": dataset_id,

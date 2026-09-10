@@ -71,17 +71,26 @@ class IngestionService:
             records = parser.parse(file_bytes)
 
             if records:
+                from app.services.ingestion.header_adapter import adapt_record_headers
                 # Format raw records for storage
                 raw_docs = []
                 for idx, r in enumerate(records, start=1):
+                    adapted_r = adapt_record_headers(r, fallback_idx=idx)
+                    source_rec_id = str(
+                        adapted_r.get("feedback_id")
+                        or adapted_r.get("customer_id")
+                        or adapted_r.get("review_id")
+                        or adapted_r.get("ticket_id")
+                        or f"row_{idx}"
+                    )
                     raw_docs.append({
                         "dataset_id": str(dataset_id),
                         "workspace_id": workspace_id,
                         "product_id": product_id,
                         "source_type": source_type,
-                        "source_record_id": str(r.get("customer_id") or r.get("review_id") or r.get("ticket_id") or f"row_{idx}"),
+                        "source_record_id": source_rec_id,
                         "row_number": idx,
-                        "original_record": r,
+                        "original_record": adapted_r,
                         "created_at": datetime.now(timezone.utc)
                     })
                 data_repository.insert_raw_records(raw_docs)

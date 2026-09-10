@@ -10,6 +10,13 @@ def validate_schema(record: dict, source_type: str) -> tuple[bool, list[str]]:
     
     for field in required_fields:
         val = record.get(field)
+        if field == "customer_id" and not val:
+            val = record.get("feedback_id")
+        elif field == "feedback" and not val:
+            val = record.get("feedback_text")
+        elif field == "date" and not val:
+            val = record.get("feedback_date") or record.get("created_at")
+
         if val is None or str(val).strip() == "":
             errors.append(f"Missing or empty required field: {field}")
             

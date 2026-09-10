@@ -9,10 +9,10 @@ def validate_business_rules(record: dict, source_type: str) -> tuple[bool, list[
     source_upper = source_type.upper()
     
     if source_upper == SourceType.FEEDBACK.name:
-        if not record.get("customer_id"):
-            errors.append("FEEDBACK requires customer_id")
-        if not record.get("feedback"):
-            errors.append("FEEDBACK requires feedback text")
+        if not (record.get("customer_id") or record.get("feedback_id")):
+            errors.append("FEEDBACK requires customer_id or feedback_id")
+        if not (record.get("feedback") or record.get("feedback_text")):
+            errors.append("FEEDBACK requires feedback or feedback_text")
     elif source_upper == SourceType.REVIEW.name:
         if not record.get("review_id"):
             errors.append("REVIEW requires review_id")

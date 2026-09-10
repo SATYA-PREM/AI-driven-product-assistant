@@ -8,7 +8,14 @@ def detect_duplicates(records: list[dict], text_field: str = 'feedback') -> list
     seen_hashes = {}
     
     for record in records:
-        text = str(record.get(text_field) or "")
+        text = str(
+            record.get(text_field)
+            or record.get("feedback_text")
+            or record.get("feedback")
+            or record.get("review_text")
+            or record.get("description")
+            or ""
+        )
         text_hash = compute_text_hash(text)
         
         if text_hash in seen_hashes:
