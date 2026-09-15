@@ -69,3 +69,36 @@ def test_clean_row_produces_expected_shape():
         "feedback": "great app",
         "date": "2026-08-20",
     }
+
+
+import unittest
+
+class TestValidatorAndCleaner(unittest.TestCase):
+    def test_valid_row_passes(self):
+        test_valid_row_passes()
+
+    def test_missing_field_fails(self):
+        test_missing_field_fails()
+
+    def test_out_of_range_rating_fails(self):
+        test_out_of_range_rating_fails()
+
+    def test_non_numeric_rating_fails(self):
+        test_non_numeric_rating_fails()
+
+    def test_validate_rows_detects_duplicates(self):
+        test_validate_rows_detects_duplicates()
+
+    def test_normalize_text_lowercases_and_strips_exclamations(self):
+        test_normalize_text_lowercases_and_strips_exclamations()
+
+    def test_normalize_date_converts_us_format(self):
+        test_normalize_date_converts_us_format()
+
+    def test_clean_row_produces_expected_shape(self):
+        test_clean_row_produces_expected_shape()
+
+
+if __name__ == "__main__":
+    unittest.main()
+

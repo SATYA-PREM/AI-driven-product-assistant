@@ -36,13 +36,33 @@ def clean_row(row: dict) -> dict:
     """
     Takes one already-valid row and returns a cleaned version.
     Only call this on rows where validate_row() returned is_valid=True.
+    Supports both standard schema and custom/arbitrary schemas.
     """
-    return {
-        "customer_id": row["customer_id"].strip(),
-        "rating": int(row["rating"]),
-        "feedback": normalize_text(row["feedback"]),
-        "date": normalize_date(row["date"]),
-    }
+    if all(k in row for k in ("customer_id", "rating", "feedback", "date")):
+        return {
+            "customer_id": str(row["customer_id"]).strip(),
+            "rating": int(row["rating"]),
+            "feedback": normalize_text(str(row["feedback"])),
+            "date": normalize_date(str(row["date"])),
+        }
+
+    # Custom / Arbitrary CSV row
+    cleaned = {}
+    for k, v in row.items():
+        if v is None:
+            cleaned[k] = None
+        elif isinstance(v, str):
+            # If it's a date-like column
+            if any(term in k.lower() for term in ["date", "time", "created_at"]):
+                cleaned[k] = normalize_date(v)
+            # If it's a feedback or text column
+            elif any(term in k.lower() for term in ["feedback", "comment", "review", "text", "description", "message"]):
+                cleaned[k] = normalize_text(v)
+            else:
+                cleaned[k] = v.strip()
+        else:
+            cleaned[k] = v
+    return cleaned
 
 
 def clean_rows(valid_rows: list[dict]) -> list[dict]:

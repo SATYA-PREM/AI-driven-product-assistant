@@ -28,12 +28,16 @@ from app.config import settings
 client = MongoClient(settings.mongodb_uri)
 db = client[settings.database_name]
 
-# These three lines are where the three "folders" get created.
+# These lines are where the collections get created.
 # MongoDB creates a collection automatically the first time you
 # insert into it -- you don't need to set these up manually in Atlas.
 batches_col = db["batches"]
 raw_data_col = db["raw_data"]
 cleaned_data_col = db["cleaned_data"]
+
+# Milestone 2 Collections
+ai_jobs_col = db["ai_jobs"]
+feedback_analyses_col = db["feedback_analyses"]
 
 
 def check_connection() -> bool:
