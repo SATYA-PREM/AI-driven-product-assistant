@@ -2,13 +2,16 @@ import React, { useState } from 'react';
 import WorkspacesPage from './pages/WorkspacesPage';
 import RoadmapPage from './pages/RoadmapPage';
 import RequirementsPage from './pages/RequirementsPage';
+import ReportsPage from './pages/ReportsPage';
 
 function App() {
-  // Default to Requirements page as requested
-  const [currentPage, setCurrentPage] = useState('Requirements');
+  // Default to Reports page as requested
+  const [currentPage, setCurrentPage] = useState('Reports');
 
   const renderCurrentPage = () => {
     switch (currentPage) {
+      case 'Reports':
+        return <ReportsPage onNavigate={setCurrentPage} />;
       case 'Requirements':
       case 'Requirements (PRDs)':
         return <RequirementsPage onNavigate={setCurrentPage} />;
