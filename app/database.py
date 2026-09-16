@@ -23,25 +23,45 @@ should know:
 """
 
 from pymongo import MongoClient
+from pymongo.errors import PyMongoError
 from app.config import settings
 
-client = MongoClient(settings.mongodb_uri)
-db = client[settings.database_name]
+try:
+    client = MongoClient(
+        settings.mongodb_uri,
+        connect=False,
+        serverSelectionTimeoutMS=4000,
+    )
+    db = client[settings.database_name]
+except Exception as e:
+    print(f"Warning: MongoDB client initialization error: {e}")
+    client = None
+    db = None
 
-# These lines are where the collections get created.
-# MongoDB creates a collection automatically the first time you
-# insert into it -- you don't need to set these up manually in Atlas.
-batches_col = db["batches"]
-raw_data_col = db["raw_data"]
-cleaned_data_col = db["cleaned_data"]
+class _SafeColProxy:
+    """Fallback collection proxy if MongoDB is momentarily unreachable."""
+    def __init__(self, col_name):
+        self.col_name = col_name
 
-# Milestone 2 Collections
-ai_jobs_col = db["ai_jobs"]
-feedback_analyses_col = db["feedback_analyses"]
+    def __getattr__(self, item):
+        if db is not None:
+            col = db[self.col_name]
+            return getattr(col, item)
+        def _dummy(*args, **kwargs):
+            return []
+        return _dummy
+
+batches_col = db["batches"] if db is not None else _SafeColProxy("batches")
+raw_data_col = db["raw_data"] if db is not None else _SafeColProxy("raw_data")
+cleaned_data_col = db["cleaned_data"] if db is not None else _SafeColProxy("cleaned_data")
+ai_jobs_col = db["ai_jobs"] if db is not None else _SafeColProxy("ai_jobs")
+feedback_analyses_col = db["feedback_analyses"] if db is not None else _SafeColProxy("feedback_analyses")
 
 
 def check_connection() -> bool:
     """Call this once to confirm Mongo is reachable before doing anything else."""
+    if client is None:
+        return False
     try:
         client.admin.command("ping")
         return True

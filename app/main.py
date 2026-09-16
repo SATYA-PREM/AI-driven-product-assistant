@@ -29,6 +29,7 @@ from app.agent1 import (
     run_agent1_for_batch,
 )
 from app.dashboard import get_dashboard_html
+from app.workspace_view import get_workspaces_html
 
 app = FastAPI(
     title="Customer Feedback AI Pipeline",
@@ -42,6 +43,13 @@ app = FastAPI(
 def dashboard_view():
     """Interactive dashboard for uploading CSVs and viewing Agent 1 AI intelligence."""
     return HTMLResponse(content=get_dashboard_html())
+
+
+@app.get("/workspaces", response_class=HTMLResponse, include_in_schema=False)
+def workspaces_view():
+    """ProdIntel AI Workspaces Dashboard matching the user's Figma/UI design."""
+    return HTMLResponse(content=get_workspaces_html())
+
 
 
 

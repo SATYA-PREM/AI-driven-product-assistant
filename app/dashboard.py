@@ -42,6 +42,9 @@ DASHBOARD_HTML = """
         </div>
       </div>
       <div class="flex items-center space-x-3">
+        <a href="/workspaces" class="text-xs bg-violet-600 hover:bg-violet-700 text-white px-3 py-1.5 rounded-md font-medium transition flex items-center shadow-sm">
+          <i class="fa-solid fa-layer-group mr-1.5"></i> Workspaces Dashboard
+        </a>
         <span id="health-badge" class="px-2.5 py-1 text-xs font-semibold rounded-full bg-slate-100 text-slate-600 border">
           Checking backend...
         </span>
