@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 
-export default function WorkspacesPage() {
+export default function WorkspacesPage({ onNavigate }) {
   // Theme state: dark / light with localStorage persistence
   const [isDark, setIsDark] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -463,7 +463,12 @@ export default function WorkspacesPage() {
               return (
                 <button
                   key={item.name}
-                  onClick={() => setActiveNav(item.name)}
+                  onClick={() => {
+                    setActiveNav(item.name);
+                    if (item.name === 'Roadmap' && onNavigate) {
+                      onNavigate('Roadmap');
+                    }
+                  }}
                   className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors text-left ${
                     isActive
                       ? 'bg-violet-50 text-violet-700 dark:bg-violet-600/20 dark:text-violet-300'

@@ -1,8 +1,8 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
@@ -29,6 +29,17 @@ body {
 }
 .dark ::-webkit-scrollbar-thumb:hover {
   background: #334155;
+}
+
+/* Donut chart visual fallback */
+.donut-chart-visual {
+  border-radius: 50%;
+  background: conic-gradient(
+    #ef4444 0% 43%,
+    #f97316 43% 72%,
+    #3b82f6 72% 90%,
+    #06b6d4 90% 100%
+  );
 }
 
 @keyframes fadeIn {
