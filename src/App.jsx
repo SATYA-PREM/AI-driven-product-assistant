@@ -33,16 +33,17 @@ import ProcessingUI from "./features/datasets/ProcessingUI";
 import InsightsDashboard from "./features/intelligence/InsightsDashboard";
 import CriticalIssues from "./features/intelligence/CriticalIssues";
 import Trends from "./features/intelligence/Trends";
-
-// 7. Feedback (New Addition)
 import FeedbackDashboard from "./features/feedback/FeedbackDashboard";
+import FeaturesDashboard from "./features/features/FeaturesDashboard";
 
-// 8. Development
+// 7. Development
+import PrioritizationDashboard from "./features/development/PrioritizationDashboard";
+import RequirementsPRD from "./features/development/RequirementsPRD";
 import Phases from "./features/development/Phases";
 import TaskBoard from "./features/development/TaskBoard";
 import PMValidation from "./features/development/PMValidation";
 
-// 9. Outputs
+// 8. Outputs
 import Reports from "./features/reports/Reports";
 import ChatAssistant from "./features/assistant/ChatAssistant";
 
@@ -71,26 +72,22 @@ export default function App() {
             <Route path="data/upload" element={<DataIngestion />} />
             <Route path="data/validation" element={<ValidationUI />} />
             <Route path="data/processing" element={<ProcessingUI />} />
-            <Route
-              path="intelligence/insights"
-              element={<InsightsDashboard />}
-            />
+            <Route path="intelligence/insights" element={<InsightsDashboard />} />
             <Route path="intelligence/issues" element={<CriticalIssues />} />
             <Route path="intelligence/trends" element={<Trends />} />
 
             {/* Feedback Routes */}
-            <Route
-              path="intelligence/feedback"
-              element={<FeedbackDashboard />}
-            />
-            <Route
-              path="intelligence/feedback/:filter"
-              element={<FeedbackDashboard />}
-            />
+            <Route path="intelligence/feedback" element={<FeedbackDashboard />} />
+            <Route path="intelligence/feedback/:filter" element={<FeedbackDashboard />} />
 
-            <Route path="development/phases" element={<Phases />} />
+            {/* Features Route */}
+            <Route path="intelligence/features" element={<FeaturesDashboard />} />
+
+            {/* Development / Prioritization / Requirements Routes */}
+            <Route path="development/phases" element={<PrioritizationDashboard />} />
+            <Route path="development/validation" element={<RequirementsPRD />} />
             <Route path="development/tasks" element={<TaskBoard />} />
-            <Route path="development/validation" element={<PMValidation />} />
+            
             <Route path="reports" element={<Reports />} />
             <Route path="assistant" element={<ChatAssistant />} />
           </Route>

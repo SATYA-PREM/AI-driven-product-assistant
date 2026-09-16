@@ -22,7 +22,7 @@ export default function Sidebar({ workspaceId: propWorkspaceId }) {
   const location = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isInsightsOpen, setIsInsightsOpen] = useState(false);
-  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false); // Feedback dropdown state
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
 
   const workspaces = getStoredWorkspaces();
   const activeWorkspace = workspaces.find((ws) => ws.id === propWorkspaceId) || workspaces[0] || {
@@ -34,7 +34,7 @@ export default function Sidebar({ workspaceId: propWorkspaceId }) {
   const wsId = propWorkspaceId || activeWorkspace.id;
   const basePath = `/workspace/${wsId}`;
 
-  // Automatically open the insights or feedback menu if we are already on those routes
+  // Automatically open accordion menus if current route matches
   useEffect(() => {
     if (location.pathname.includes('/intelligence/insights')) {
       setIsInsightsOpen(true);
@@ -46,13 +46,11 @@ export default function Sidebar({ workspaceId: propWorkspaceId }) {
 
   const isActive = (path) => location.pathname === path;
   
-  // Custom checks for active states
   const isInsightsActive = location.pathname.includes('/intelligence/insights');
   const isFeedbackActive = location.pathname.includes('/intelligence/feedback');
 
   const isHashActive = (hash) => location.hash === hash || (location.hash === '' && hash === '#Overview');
 
-  // Feedback sub-items matching the screenshots
   const feedbackSubItems = [
     { label: 'All Feedback', path: `${basePath}/intelligence/feedback/all` },
     { label: 'My Feedback', path: `${basePath}/intelligence/feedback/my` },
@@ -62,9 +60,9 @@ export default function Sidebar({ workspaceId: propWorkspaceId }) {
   ];
 
   const navItems = [
-    { icon: LayoutGrid, label: 'Features', path: `${basePath}/intelligence/issues` },
+    { icon: LayoutGrid, label: 'Features', path: `${basePath}/intelligence/features` },
     { icon: Star, label: 'Prioritization', path: `${basePath}/development/phases` },
-    { icon: FileText, label: 'Requirements', path: `${basePath}/development/validation` },
+    { icon: FileText, label: 'Requirements (PRDs)', path: `${basePath}/development/validation` },
     { icon: Map, label: 'Roadmap', path: `${basePath}/development/tasks` },
     { icon: BarChart2, label: 'Reports', path: `${basePath}/reports` },
     { icon: Sparkles, label: 'AI Assistant', path: `${basePath}/assistant` },
@@ -186,7 +184,7 @@ export default function Sidebar({ workspaceId: propWorkspaceId }) {
             </div>
           </div>
 
-          {/* 3. Feedback Accordion Menu (Added with Sub-tabs) */}
+          {/* 3. Feedback Accordion Menu */}
           <div className="flex flex-col">
             <button
               onClick={() => {
@@ -219,11 +217,16 @@ export default function Sidebar({ workspaceId: propWorkspaceId }) {
             >
               <div className="overflow-hidden flex flex-col gap-0.5 ml-9 mr-1">
                 {feedbackSubItems.map((sub, idx) => {
+                  const subActive = location.pathname === sub.path;
                   return (
                     <Link
                       key={idx}
                       to={sub.path}
-                      className="text-[11.5px] py-2 px-3 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-[#111726] transition-colors"
+                      className={`text-[11.5px] py-2 px-3 rounded-lg transition-colors ${
+                        subActive 
+                          ? 'bg-[#1a2236] text-[#a78bfa] font-semibold' 
+                          : 'text-slate-500 hover:text-slate-300 hover:bg-[#111726]'
+                      }`}
                     >
                       {sub.label}
                     </Link>

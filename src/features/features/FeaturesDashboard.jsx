@@ -1,12 +1,19 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import React, { useMemo, useState } from 'react';
+import { motion } from 'framer-motion';
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  PieChart,
+  Pie,
+  Cell
+} from 'recharts';
 import {
   Activity,
   AlertTriangle,
-  ArrowDownRight,
-  ArrowRight,
-  ArrowUpRight,
-  BarChart3,
   CalendarDays,
   CheckCircle2,
   ChevronDown,
@@ -16,15 +23,9 @@ import {
   FileText,
   Filter,
   Layers,
-  MessageSquare,
-  MoreHorizontal,
   Plus,
   Search,
-  SlidersHorizontal,
   Sparkles,
-  Star,
-  Target,
-  Users,
   X,
 } from 'lucide-react';
 
@@ -36,8 +37,30 @@ const COLORS = {
   red: '#ef4444',    
   blue: '#3b82f6',
   orange: '#f97316',
-  cyan: '#06b6d4',
 };
+
+// Recharts Trend Data
+const TREND_DATA = [
+  { name: 'Jul 1', total: 20, implemented: 5, inProgress: 8 },
+  { name: 'Jul 15', total: 35, implemented: 8, inProgress: 12 },
+  { name: 'Jul 29', total: 30, implemented: 10, inProgress: 11 },
+  { name: 'Aug 12', total: 48, implemented: 12, inProgress: 14 },
+  { name: 'Aug 31', total: 56, implemented: 14, inProgress: 16 },
+];
+
+const STATUS_DATA = [
+  { name: 'Implemented', value: 14, color: COLORS.green },
+  { name: 'In Progress', value: 16, color: COLORS.blue },
+  { name: 'Planned', value: 12, color: COLORS.amber },
+  { name: 'Not Started', value: 14, color: COLORS.red },
+];
+
+const PRIORITY_DATA = [
+  { name: 'Critical', value: 10, color: COLORS.red },
+  { name: 'High', value: 18, color: COLORS.orange },
+  { name: 'Medium', value: 17, color: COLORS.amber },
+  { name: 'Low', value: 7, color: COLORS.green },
+];
 
 const FEATURES_ROWS = [
   { 
@@ -178,69 +201,6 @@ function cn(...classes) {
   return classes.filter(Boolean).join(';');
 }
 
-/* =========================================
-   COMPONENTS
-   ========================================= */
-function LineChart({ series = [], labels = [], height = 200, max = 100 }) {
-  const width = 720; 
-  const pad = { left: 35, right: 15, top: 15, bottom: 25 }; 
-  const innerW = width - pad.left - pad.right; 
-  const innerH = height - pad.top - pad.bottom;
-  
-  const x = (i, count) => pad.left + (count <= 1 ? 0 : (i / (count - 1)) * innerW);
-  const y = (v) => pad.top + (1 - v / max) * innerH;
-
-  const buildPath = (values) => values.map((v, i) => `${i === 0 ? 'M' : 'L'} ${x(i, values.length).toFixed(2)} ${y(v).toFixed(2)}`).join(' ');
-
-  return (
-    <div className="w-full relative">
-      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto" preserveAspectRatio="none">
-        {[0, 0.5, 1].map((t, idx) => {
-          const yy = pad.top + t * innerH;
-          return <line key={idx} x1={pad.left} x2={width - pad.right} y1={yy} y2={yy} stroke="#1e293b" strokeDasharray="4 4" />;
-        })}
-        {labels.map((lbl, i) => (
-          <text key={i} x={x(i, labels.length)} y={height - 5} textAnchor="middle" fill="#64748b" fontSize="9">{lbl}</text>
-        ))}
-        {series.map((s) => (
-          <path key={s.key} d={buildPath(s.values)} fill="none" stroke={s.color} strokeWidth={2.5} strokeLinejoin="round" />
-        ))}
-      </svg>
-    </div>
-  );
-}
-
-function Donut({ segments, centerTop, centerBottom, size = 130 }) {
-  const radius = 45; const stroke = 18; const circumference = 2 * Math.PI * radius; let offset = 0;
-  return (
-    <div className="relative shrink-0 transition-transform duration-500 hover:scale-105 cursor-pointer group/donut" style={{ width: size, height: size }}>
-      <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90">
-        <circle cx="60" cy="60" r={radius} fill="none" stroke="#1e293b" strokeWidth={stroke} />
-        {segments.map((s) => {
-          const dash = (s.value / 100) * circumference; const currentOffset = offset; offset += dash;
-          return (<circle key={s.label} cx="60" cy="60" r={radius} fill="none" stroke={s.color} strokeWidth={stroke} strokeDasharray={`${dash} ${circumference - dash}`} strokeDashoffset={-currentOffset} />);
-        })}
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-        <span className="text-[8px] text-slate-400">{centerTop}</span>
-        <span className="text-[16px] font-bold text-slate-100">{centerBottom}</span>
-      </div>
-    </div>
-  );
-}
-
-function LegendRow({ label, value, color }) {
-  return (
-    <div className="flex items-center justify-between gap-4 py-0.5 text-[10px]">
-      <span className="flex items-center gap-1.5 text-slate-300">
-        <span className="h-2 w-2 rounded-[2px]" style={{ background: color }} />
-        {label}
-      </span>
-      <span className="font-bold text-slate-200">{value}</span>
-    </div>
-  );
-}
-
 function PriorityBadge({ value }) {
   const map = { 
     Critical: 'bg-red-500/10 text-red-400 border-red-500/20', 
@@ -248,7 +208,7 @@ function PriorityBadge({ value }) {
     Medium: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
     Low: 'bg-blue-500/10 text-blue-400 border-blue-500/20'
   };
-  return <span className={cn('inline-flex border rounded-md px-2 py-0.5 text-[9px] font-semibold', map[value] || 'bg-slate-800 text-slate-300')}>{value}</span>;
+  return <span className={cn('inline-flex border rounded-md px-2 py-0.5 text-[9px] font-semibold transition-transform hover:scale-105', map[value] || 'bg-slate-800 text-slate-300')}>{value}</span>;
 }
 
 function StatusBadge({ value }) {
@@ -258,17 +218,15 @@ function StatusBadge({ value }) {
     'Planned': 'bg-purple-500/10 text-purple-400 border-purple-500/20',
     'Not Started': 'bg-slate-700/30 text-slate-400 border-slate-600/30'
   };
-  return <span className={cn('inline-flex border rounded-md px-2 py-0.5 text-[9px] font-semibold', map[value] || 'bg-slate-800 text-slate-300')}>{value}</span>;
+  return <span className={cn('inline-flex border rounded-md px-2 py-0.5 text-[9px] font-semibold transition-transform hover:scale-105', map[value] || 'bg-slate-800 text-slate-300')}>{value}</span>;
 }
 
-/* =========================================
-   MAIN FEATURES DASHBOARD
-   ========================================= */
 export default function FeaturesDashboard() {
   const [selectedFeature, setSelectedFeature] = useState(FEATURES_ROWS[0]);
-  const [isLoading, setIsLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [priorityFilter, setPriorityFilter] = useState('All');
 
   const triggerToast = (msg) => {
     setToastMessage(msg);
@@ -276,152 +234,182 @@ export default function FeaturesDashboard() {
   };
 
   const filteredFeatures = useMemo(() => {
-    return FEATURES_ROWS.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase()) || f.category.toLowerCase().includes(searchQuery.toLowerCase()));
-  }, [searchQuery]);
+    return FEATURES_ROWS.filter(f => {
+      const matchesSearch = f.name.toLowerCase().includes(searchQuery.toLowerCase()) || f.category.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesStatus = statusFilter === 'All' || f.status === statusFilter;
+      const matchesPriority = priorityFilter === 'All' || f.priority === priorityFilter;
+      return matchesSearch && matchesStatus && matchesPriority;
+    });
+  }, [searchQuery, statusFilter, priorityFilter]);
 
   return (
-    <div className="min-h-screen w-full bg-[#070a10] text-slate-300 font-sans flex flex-col justify-between overflow-y-auto pb-16">
-      
+    <motion.div 
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+      className="min-h-screen w-full bg-[#070a10] text-slate-300 font-sans flex flex-col justify-between overflow-y-auto pb-16"
+    >
       <div className="p-6 space-y-6 max-w-[1600px] w-full mx-auto">
         
         {/* Header Section */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-2">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-1">
           <div>
-            <div className="flex items-center gap-2 text-[11px] text-slate-400 mb-1">
-              <span>Insights</span>
-              <span>›</span>
-              <span className="text-white font-medium">Features</span>
-            </div>
             <h1 className="text-[22px] font-bold text-white tracking-tight">Features</h1>
             <p className="text-[11px] text-slate-400 mt-0.5">Discover, analyze, and manage product features based on user feedback.</p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
-            <button onClick={() => triggerToast('Date range selector opened')} className="flex items-center gap-2 bg-[#111827] border border-[#263348] px-3.5 py-1.5 rounded-lg text-[10px] text-slate-300 hover:border-violet-500 transition-all">
+            <button onClick={() => triggerToast('Date range selector opened')} className="flex items-center gap-2 bg-[#111827] border border-[#263348] px-3.5 py-1.5 rounded-lg text-[10px] text-slate-300 hover:border-violet-500 transition-all hover:scale-105">
               <CalendarDays className="w-3.5 h-3.5 text-slate-400"/> Jul 1 – Aug 31, 2025 <ChevronDown className="w-3 h-3 text-slate-500"/>
             </button>
-            <button onClick={() => triggerToast('Filters panel opened')} className="flex items-center gap-2 bg-[#111827] border border-[#263348] px-3.5 py-1.5 rounded-lg text-[10px] text-slate-300 hover:border-violet-500 transition-all">
+            <button onClick={() => triggerToast('Advanced filters modal opened')} className="flex items-center gap-2 bg-[#111827] border border-[#263348] px-3.5 py-1.5 rounded-lg text-[10px] text-slate-300 hover:border-violet-500 transition-all hover:scale-105">
               <Filter className="w-3.5 h-3.5 text-slate-400"/> Filters
             </button>
-            <button onClick={() => triggerToast('Exporting Report...')} className="flex items-center gap-2 bg-[#111827] border border-[#263348] px-3.5 py-1.5 rounded-lg text-[10px] text-slate-300 hover:border-violet-500 transition-all">
+            <button onClick={() => triggerToast('Exporting report data...')} className="flex items-center gap-2 bg-[#111827] border border-[#263348] px-3.5 py-1.5 rounded-lg text-[10px] text-slate-300 hover:border-violet-500 transition-all hover:scale-105">
               <Download className="w-3.5 h-3.5 text-slate-400"/> Export
             </button>
-            <button onClick={() => triggerToast('Feature creation modal opened')} className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 px-4 py-1.5 rounded-lg text-[10px] font-medium text-white shadow-lg shadow-violet-950 transition-all hover:scale-105">
+            <button onClick={() => triggerToast('Add Feature modal opened')} className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 px-4 py-1.5 rounded-lg text-[10px] font-medium text-white shadow-lg shadow-violet-950 transition-all hover:scale-105 active:scale-95">
               <Plus className="w-3.5 h-3.5"/> Add Feature
             </button>
           </div>
         </div>
 
-        {/* Top KPI Cards Grid */}
+        {/* Top KPI Cards Grid with Framer Motion */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <div className="bg-[#111827] border border-[#263348] rounded-xl p-4 flex flex-col justify-between transition-all hover:border-violet-500/50">
-            <div className="flex items-center justify-between">
-              <div className="h-8 w-8 rounded-lg bg-violet-500/10 text-violet-400 flex items-center justify-center"><Layers className="h-4 w-4" /></div>
-              <span className="text-[10px] text-green-400 font-medium">↑ 12.0% vs Jun</span>
-            </div>
-            <div className="mt-4"><p className="text-[11px] text-slate-400">Total Features</p><h3 className="text-[18px] font-bold text-white">56</h3></div>
-          </div>
-
-          <div className="bg-[#111827] border border-[#263348] rounded-xl p-4 flex flex-col justify-between transition-all hover:border-violet-500/50">
-            <div className="flex items-center justify-between">
-              <div className="h-8 w-8 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center"><Activity className="h-4 w-4" /></div>
-              <span className="text-[10px] text-green-400 font-medium">↑ 8.6% vs Jun</span>
-            </div>
-            <div className="mt-4"><p className="text-[11px] text-slate-400">Active Features</p><h3 className="text-[18px] font-bold text-white">38</h3></div>
-          </div>
-
-          <div className="bg-[#111827] border border-[#263348] rounded-xl p-4 flex flex-col justify-between transition-all hover:border-violet-500/50">
-            <div className="flex items-center justify-between">
-              <div className="h-8 w-8 rounded-lg bg-green-500/10 text-green-400 flex items-center justify-center"><CheckCircle2 className="h-4 w-4" /></div>
-              <span className="text-[10px] text-green-400 font-medium">↑ 16.7% vs Jun</span>
-            </div>
-            <div className="mt-4"><p className="text-[11px] text-slate-400">Implemented</p><h3 className="text-[18px] font-bold text-white">14</h3></div>
-          </div>
-
-          <div className="bg-[#111827] border border-[#263348] rounded-xl p-4 flex flex-col justify-between transition-all hover:border-violet-500/50">
-            <div className="flex items-center justify-between">
-              <div className="h-8 w-8 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center"><Clock className="h-4 w-4" /></div>
-              <span className="text-[10px] text-green-400 font-medium">↑ 6.7% vs Jun</span>
-            </div>
-            <div className="mt-4"><p className="text-[11px] text-slate-400">In Progress</p><h3 className="text-[18px] font-bold text-white">16</h3></div>
-          </div>
-
-          <div className="bg-[#111827] border border-[#263348] rounded-xl p-4 flex flex-col justify-between transition-all hover:border-violet-500/50">
-            <div className="flex items-center justify-between">
-              <div className="h-8 w-8 rounded-lg bg-red-500/10 text-red-400 flex items-center justify-center"><AlertTriangle className="h-4 w-4" /></div>
-              <span className="text-[10px] text-red-400 font-medium">↓ 7.7% vs Jun</span>
-            </div>
-            <div className="mt-4"><p className="text-[11px] text-slate-400">Planned</p><h3 className="text-[18px] font-bold text-white">12</h3></div>
-          </div>
+          {[
+            { title: 'Total Features', val: '56', icon: Layers, color: 'text-violet-400 bg-violet-500/10', trend: '↑ 12.0% vs Jun' },
+            { title: 'Active Features', val: '38', icon: Activity, color: 'text-blue-400 bg-blue-500/10', trend: '↑ 8.6% vs Jun' },
+            { title: 'Implemented', val: '14', icon: CheckCircle2, color: 'text-green-400 bg-green-500/10', trend: '↑ 16.7% vs Jun' },
+            { title: 'In Progress', val: '16', icon: Clock, color: 'text-amber-400 bg-amber-500/10', trend: '↑ 6.7% vs Jun' },
+            { title: 'Planned', val: '12', icon: AlertTriangle, color: 'text-red-400 bg-red-500/10', trend: '↓ 7.7% vs Jun' },
+          ].map((item, idx) => {
+            const IconComp = item.icon;
+            return (
+              <motion.div 
+                key={idx}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: idx * 0.05 }}
+                className="bg-[#111827] border border-[#263348] rounded-xl p-4 flex flex-col justify-between hover:border-violet-500/50 hover:scale-[1.02] transition-all"
+              >
+                <div className="flex items-center justify-between">
+                  <div className={`h-8 w-8 rounded-lg flex items-center justify-center ${item.color}`}>
+                    <IconComp className="h-4 w-4" />
+                  </div>
+                  <span className="text-[10px] text-green-400 font-medium">{item.trend}</span>
+                </div>
+                <div className="mt-4">
+                  <p className="text-[11px] text-slate-400">{item.title}</p>
+                  <h3 className="text-[18px] font-bold text-white">{item.val}</h3>
+                </div>
+              </motion.div>
+            );
+          })}
         </div>
 
-        {/* Charts Section */}
+        {/* Charts Section with Recharts Animated Charts */}
         <div className="grid grid-cols-1 xl:grid-cols-[1.4fr_1fr_1fr] gap-4">
           
-          {/* Trend Chart */}
-          <div className="bg-[#111827] border border-[#263348] rounded-xl p-5 flex flex-col justify-between">
+          {/* Trend Line Chart */}
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.4, delay: 0.2 }}
+            className="bg-[#111827] border border-[#263348] rounded-xl p-5 flex flex-col justify-between"
+          >
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-[12px] font-semibold text-white">Feature Trend Over Time</h3>
-              <span className="text-[10px] text-slate-400">Daily ▾</span>
+              <span className="text-[10px] text-slate-400 bg-[#161f31] px-2 py-0.5 rounded cursor-pointer">Daily ▾</span>
             </div>
-            <LineChart 
-              labels={['Jul 1', 'Jul 15', 'Jul 29', 'Aug 12', 'Aug 31']} 
-              max={80} 
-              series={[
-                { key: 'total', color: COLORS.purple, values: [20, 35, 30, 48, 56] },
-                { key: 'impl', color: COLORS.green, values: [5, 8, 10, 12, 14] },
-                { key: 'prog', color: COLORS.blue, values: [8, 12, 11, 14, 16] },
-              ]} 
-            />
-          </div>
+            <div className="h-[180px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={TREND_DATA}>
+                  <XAxis dataKey="name" stroke="#64748b" fontSize={9} tickLine={false} />
+                  <YAxis stroke="#64748b" fontSize={9} tickLine={false} domain={[0, 80]} />
+                  <Tooltip contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', borderRadius: '8px', fontSize: '10px' }} />
+                  <Line type="monotone" dataKey="total" stroke={COLORS.purple} strokeWidth={2.5} dot={{ r: 3 }} isAnimationActive={true} />
+                  <Line type="monotone" dataKey="implemented" stroke={COLORS.green} strokeWidth={2.5} dot={false} isAnimationActive={true} />
+                  <Line type="monotone" dataKey="inProgress" stroke={COLORS.blue} strokeWidth={2.5} dot={false} isAnimationActive={true} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </motion.div>
 
-          {/* Status Donut */}
-          <div className="bg-[#111827] border border-[#263348] rounded-xl p-5 flex flex-col justify-between">
+          {/* Status Donut Chart */}
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.4, delay: 0.25 }}
+            className="bg-[#111827] border border-[#263348] rounded-xl p-5 flex flex-col justify-between"
+          >
             <h3 className="text-[12px] font-semibold text-white mb-3">Features by Status</h3>
             <div className="flex items-center justify-around py-1">
-              <Donut 
-                segments={[
-                  { label: 'Implemented', value: 25, color: COLORS.green },
-                  { label: 'In Progress', value: 28, color: COLORS.blue },
-                  { label: 'Planned', value: 21, color: COLORS.amber },
-                  { label: 'Not Started', value: 26, color: COLORS.red }
-                ]}
-                centerTop="Total"
-                centerBottom="56"
-                size={120}
-              />
-              <div className="space-y-1">
-                <LegendRow label="Implemented" value="14 (25.0%)" color={COLORS.green} />
-                <LegendRow label="In Progress" value="16 (28.6%)" color={COLORS.blue} />
-                <LegendRow label="Planned" value="12 (21.4%)" color={COLORS.amber} />
-                <LegendRow label="Not Started" value="14 (25.0%)" color={COLORS.red} />
+              <div className="w-[110px] h-[110px] relative">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={STATUS_DATA} innerRadius={36} outerRadius={52} dataKey="value" isAnimationActive={true}>
+                      {STATUS_DATA.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} stroke="#111827" strokeWidth={2} />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
+                  <span className="text-[8px] text-slate-400">Total</span>
+                  <span className="text-[15px] font-bold text-white">56</span>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                {STATUS_DATA.map((s, idx) => (
+                  <div key={idx} className="flex items-center justify-between gap-3 text-[10px]">
+                    <span className="flex items-center gap-1.5 text-slate-300">
+                      <span className="h-2 w-2 rounded-[2px]" style={{ background: s.color }} />
+                      {s.name}
+                    </span>
+                    <span className="font-bold text-slate-200">{s.value}</span>
+                  </div>
+                ))}
               </div>
             </div>
-          </div>
+          </motion.div>
 
-          {/* Priority Donut */}
-          <div className="bg-[#111827] border border-[#263348] rounded-xl p-5 flex flex-col justify-between">
+          {/* Priority Donut Chart */}
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.4, delay: 0.3 }}
+            className="bg-[#111827] border border-[#263348] rounded-xl p-5 flex flex-col justify-between"
+          >
             <h3 className="text-[12px] font-semibold text-white mb-3">Features by Priority</h3>
             <div className="flex items-center justify-around py-1">
-              <Donut 
-                segments={[
-                  { label: 'Critical', value: 18, color: COLORS.red },
-                  { label: 'High', value: 32, color: COLORS.orange },
-                  { label: 'Medium', value: 30, color: COLORS.amber },
-                  { label: 'Low', value: 12, color: COLORS.green }
-                ]}
-                centerTop="Total"
-                centerBottom="56"
-                size={120}
-              />
-              <div className="space-y-1">
-                <LegendRow label="Critical" value="10 (17.9%)" color={COLORS.red} />
-                <LegendRow label="High" value="18 (32.1%)" color={COLORS.orange} />
-                <LegendRow label="Medium" value="17 (30.4%)" color={COLORS.amber} />
-                <LegendRow label="Low" value="7 (12.5%)" color={COLORS.green} />
+              <div className="w-[110px] h-[110px] relative">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={PRIORITY_DATA} innerRadius={36} outerRadius={52} dataKey="value" isAnimationActive={true}>
+                      {PRIORITY_DATA.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} stroke="#111827" strokeWidth={2} />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
+                  <span className="text-[8px] text-slate-400">Total</span>
+                  <span className="text-[15px] font-bold text-white">56</span>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                {PRIORITY_DATA.map((p, idx) => (
+                  <div key={idx} className="flex items-center justify-between gap-3 text-[10px]">
+                    <span className="flex items-center gap-1.5 text-slate-300">
+                      <span className="h-2 w-2 rounded-[2px]" style={{ background: p.color }} />
+                      {p.name}
+                    </span>
+                    <span className="font-bold text-slate-200">{p.value}</span>
+                  </div>
+                ))}
               </div>
             </div>
-          </div>
+          </motion.div>
 
         </div>
 
@@ -432,10 +420,31 @@ export default function FeaturesDashboard() {
             <div>
               <div className="p-3 border-b border-[#263348] flex items-center justify-between gap-3 bg-[#0d131f]">
                 <div className="flex items-center gap-2">
-                  <button className="bg-[#161f31] border border-[#263348] px-3 py-1 rounded text-[10px] text-slate-300">All Statuses ▾</button>
-                  <button className="bg-[#161f31] border border-[#263348] px-3 py-1 rounded text-[10px] text-slate-300">All Priorities ▾</button>
-                  <button className="bg-[#161f31] border border-[#263348] px-3 py-1 rounded text-[10px] text-slate-300">All Categories ▾</button>
+                  <select 
+                    value={statusFilter} 
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="bg-[#161f31] border border-[#263348] px-3 py-1 rounded text-[10px] text-slate-300 focus:outline-none cursor-pointer"
+                  >
+                    <option value="All">All Statuses</option>
+                    <option value="Implemented">Implemented</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Planned">Planned</option>
+                    <option value="Not Started">Not Started</option>
+                  </select>
+
+                  <select 
+                    value={priorityFilter} 
+                    onChange={(e) => setPriorityFilter(e.target.value)}
+                    className="bg-[#161f31] border border-[#263348] px-3 py-1 rounded text-[10px] text-slate-300 focus:outline-none cursor-pointer"
+                  >
+                    <option value="All">All Priorities</option>
+                    <option value="Critical">Critical</option>
+                    <option value="High">High</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Low">Low</option>
+                  </select>
                 </div>
+
                 <div className="relative">
                   <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-400" />
                   <input 
@@ -443,7 +452,7 @@ export default function FeaturesDashboard() {
                     placeholder="Search features..." 
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="bg-[#161f31] border border-[#263348] rounded-lg pl-8 pr-3 py-1 text-[10px] text-white focus:outline-none w-48" 
+                    className="bg-[#161f31] border border-[#263348] rounded-lg pl-8 pr-3 py-1 text-[10px] text-white focus:outline-none focus:border-violet-500 w-48 transition-all" 
                   />
                 </div>
               </div>
@@ -462,26 +471,35 @@ export default function FeaturesDashboard() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#1e293b]">
-                    {filteredFeatures.map((row) => (
-                      <tr 
-                        key={row.id} 
-                        onClick={() => setSelectedFeature(row)} 
-                        className={cn("cursor-pointer transition-colors hover:bg-[#161f31]", selectedFeature.id === row.id ? "bg-[#161f31] border-l-4 border-violet-500" : "")}
-                      >
-                        <td className="px-4 py-3">
-                          <div className="font-semibold text-white">{row.name}</div>
-                          <div className="text-[10px] text-slate-400 truncate max-w-[200px]">{row.desc}</div>
-                        </td>
-                        <td className="px-3 py-3 text-slate-300">{row.category}</td>
-                        <td className="px-3 py-3"><PriorityBadge value={row.priority} /></td>
-                        <td className="px-3 py-3"><StatusBadge value={row.status} /></td>
-                        <td className="px-3 py-3 text-slate-200 font-medium">{row.usersImpacted}</td>
-                        <td className="px-3 py-3 text-violet-400 font-medium">{row.feedbackCount}</td>
-                        <td className="px-3 py-3 text-right">
-                          <Eye className="h-4 w-4 inline text-slate-400 hover:text-white" />
-                        </td>
+                    {filteredFeatures.length > 0 ? (
+                      filteredFeatures.map((row) => (
+                        <motion.tr 
+                          key={row.id} 
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ duration: 0.2 }}
+                          onClick={() => setSelectedFeature(row)} 
+                          className={cn("cursor-pointer transition-colors hover:bg-[#161f31]", selectedFeature.id === row.id ? "bg-[#161f31] border-l-4 border-violet-500" : "")}
+                        >
+                          <td className="px-4 py-3">
+                            <div className="font-semibold text-white">{row.name}</div>
+                            <div className="text-[10px] text-slate-400 truncate max-w-[200px]">{row.desc}</div>
+                          </td>
+                          <td className="px-3 py-3 text-slate-300">{row.category}</td>
+                          <td className="px-3 py-3"><PriorityBadge value={row.priority} /></td>
+                          <td className="px-3 py-3"><StatusBadge value={row.status} /></td>
+                          <td className="px-3 py-3 text-slate-200 font-medium">{row.usersImpacted}</td>
+                          <td className="px-3 py-3 text-violet-400 font-medium">{row.feedbackCount}</td>
+                          <td className="px-3 py-3 text-right">
+                            <Eye className="h-4 w-4 inline text-slate-400 hover:text-white transition-transform hover:scale-125" />
+                          </td>
+                        </motion.tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="7" className="text-center py-6 text-slate-500 text-xs">No matching features found.</td>
                       </tr>
-                    ))}
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -493,14 +511,19 @@ export default function FeaturesDashboard() {
             </div>
           </div>
 
-          {/* Feature Details Drawer */}
-          <div className="bg-[#111827] border border-[#263348] rounded-xl p-5 flex flex-col justify-between shadow-xl">
+          {/* Feature Details Drawer with Motion */}
+          <motion.div 
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.3 }}
+            className="bg-[#111827] border border-[#263348] rounded-xl p-5 flex flex-col justify-between shadow-xl"
+          >
             <div>
               <div className="flex items-center justify-between border-b border-[#1e293b] pb-3 mb-4">
                 <h3 className="text-[12px] font-bold text-white flex items-center gap-2">
                   <FileText className="h-4 w-4 text-violet-400"/> Feature Details
                 </h3>
-                <button onClick={() => triggerToast('Drawer minimized')} className="text-slate-400 hover:text-white"><X className="h-4 w-4"/></button>
+                <button onClick={() => triggerToast('Drawer minimized')} className="text-slate-400 hover:text-white transition-transform hover:rotate-90"><X className="h-4 w-4"/></button>
               </div>
 
               <div className="space-y-4 text-[11px]">
@@ -550,18 +573,23 @@ export default function FeaturesDashboard() {
             >
               <span>View full details</span> →
             </button>
-          </div>
+          </motion.div>
 
         </div>
 
       </div>
 
       {toastMessage && (
-        <div className="fixed bottom-8 right-8 z-50 flex items-center gap-2 bg-[#111827] border border-violet-500 px-4 py-3 rounded-xl shadow-2xl animate-in slide-in-from-bottom-5">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0 }}
+          className="fixed bottom-8 right-8 z-50 flex items-center gap-2 bg-[#111827] border border-violet-500 px-4 py-3 rounded-xl shadow-2xl"
+        >
           <Sparkles className="w-4 h-4 text-violet-400 animate-spin"/>
           <span className="text-[11px] text-white">{toastMessage}</span>
-        </div>
+        </motion.div>
       )}
-    </div>
+    </motion.div>
   );
 }
