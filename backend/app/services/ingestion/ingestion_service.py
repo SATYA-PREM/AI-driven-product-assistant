@@ -32,7 +32,8 @@ class IngestionService:
         source_type: str,
         filename: str,
         file_bytes: bytes,
-        uploaded_by: str
+        uploaded_by: str,
+        dataset_name: str = "",
     ) -> dict:
         """Process an uploaded file and create records in the database."""
         file_size = len(file_bytes)
@@ -48,6 +49,7 @@ class IngestionService:
             workspace_id=workspace_id,
             product_id=product_id,
             filename=filename,
+            dataset_name=dataset_name or filename,
             format=file_format,
             source_type=SourceType(source_type) if source_type in [s.value for s in SourceType] else SourceType.FEEDBACK,
             file_size=file_size,
@@ -71,26 +73,17 @@ class IngestionService:
             records = parser.parse(file_bytes)
 
             if records:
-                from app.services.ingestion.header_adapter import adapt_record_headers
                 # Format raw records for storage
                 raw_docs = []
                 for idx, r in enumerate(records, start=1):
-                    adapted_r = adapt_record_headers(r, fallback_idx=idx)
-                    source_rec_id = str(
-                        adapted_r.get("feedback_id")
-                        or adapted_r.get("customer_id")
-                        or adapted_r.get("review_id")
-                        or adapted_r.get("ticket_id")
-                        or f"row_{idx}"
-                    )
                     raw_docs.append({
                         "dataset_id": str(dataset_id),
                         "workspace_id": workspace_id,
                         "product_id": product_id,
                         "source_type": source_type,
-                        "source_record_id": source_rec_id,
+                        "source_record_id": str(r.get("customer_id") or r.get("review_id") or r.get("ticket_id") or f"row_{idx}"),
                         "row_number": idx,
-                        "original_record": adapted_r,
+                        "original_record": r,
                         "created_at": datetime.now(timezone.utc)
                     })
                 data_repository.insert_raw_records(raw_docs)
@@ -109,6 +102,23 @@ class IngestionService:
                 status=JobStatus.COMPLETED.value,
                 progress=20.0,
                 step_result={"records_ingested": len(records)}
+            )
+
+            # Synchronize workflow state tracking
+            from app.services.workflow.workflow_service import workflow_service
+            workflow_service.sync_dataset_workflow_step(
+                workspace_id=workspace_id,
+                dataset_id=str(dataset_id),
+                step_name="upload",
+                status="completed",
+                metadata={"filename": filename, "record_count": len(records)},
+            )
+            workflow_service.sync_dataset_workflow_step(
+                workspace_id=workspace_id,
+                dataset_id=str(dataset_id),
+                step_name="ingestion",
+                status="completed",
+                metadata={"record_count": len(records)},
             )
 
         except Exception as e:

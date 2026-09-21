@@ -1,39 +1,49 @@
 """
 report.py
 ---------
-MongoDB document model for generated Product Intelligence executive reports.
+MongoDB document model for executive product intelligence reports.
 """
 
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any, Optional
-import uuid
+from typing import Any
 
 
 class ReportModel:
-    """Model for reports collection."""
+    """Document model for the `reports` collection."""
 
     @staticmethod
     def create_document(
+        report_id: str,
         workspace_id: str,
+        dataset_id: str | None,
+        report_type: str,
         title: str,
-        report_type: str = "weekly_intelligence",
-        summary: str = "",
-        key_metrics: Optional[dict[str, Any]] = None,
-        sections: Optional[list[dict[str, Any]]] = None,
+        status: str,
+        summary_kpis: dict[str, Any],
+        executive_takeaways: list[str],
+        prioritized_issues: list[dict[str, Any]],
+        feature_demand_ranking: list[dict[str, Any]],
+        emerging_trends: list[dict[str, Any]],
+        sentiment_overview: dict[str, Any],
+        recommended_next_steps: list[str],
     ) -> dict[str, Any]:
         return {
-            "report_id": str(uuid.uuid4()),
+            "report_id": report_id,
             "workspace_id": workspace_id,
-            "title": title,
+            "dataset_id": dataset_id,
             "report_type": report_type,
-            "summary": summary,
-            "key_metrics": key_metrics or {"total_signals": 150, "positive_pct": 68.0, "critical_issues": 3},
-            "sections": sections or [
-                {"heading": "Executive Summary", "content": "Customer sentiment has shown a 5% positive increase this cycle."},
-                {"heading": "Critical Action Items", "content": "Address checkout friction reported in mobile app reviews."},
-            ],
+            "title": title,
+            "status": status,
+            "summary_kpis": summary_kpis,
+            "executive_takeaways": executive_takeaways,
+            "prioritized_issues": prioritized_issues,
+            "feature_demand_ranking": feature_demand_ranking,
+            "emerging_trends": emerging_trends,
+            "sentiment_overview": sentiment_overview,
+            "recommended_next_steps": recommended_next_steps,
             "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
         }
 

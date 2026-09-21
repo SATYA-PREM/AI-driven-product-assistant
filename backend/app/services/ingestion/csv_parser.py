@@ -9,17 +9,14 @@ class CSVParser(FileParser):
     """Parser for CSV files."""
 
     def parse(self, file_bytes: bytes) -> list[dict]:
-        """Parse CSV bytes to list of dicts with robust encoding detection and key cleaning."""
-        content = ""
-        for enc in ['utf-8-sig', 'utf-8', 'latin-1', 'cp1252']:
+        """Parse CSV bytes to list of dicts with encoding detection."""
+        try:
+            content = file_bytes.decode('utf-8')
+        except UnicodeDecodeError:
             try:
-                content = file_bytes.decode(enc)
-                break
-            except UnicodeDecodeError:
-                continue
-
-        if not content and file_bytes:
-            content = file_bytes.decode('utf-8', errors='replace')
+                content = file_bytes.decode('latin-1')
+            except Exception as e:
+                raise FileProcessingError(f"Failed to decode CSV: {str(e)}")
 
         if not content.strip():
             return []
@@ -32,15 +29,7 @@ class CSVParser(FileParser):
 
         try:
             reader = csv.DictReader(io.StringIO(content), dialect=dialect)
-            rows = []
-            for row in reader:
-                clean_row = {}
-                for k, v in row.items():
-                    if k is not None:
-                        clean_k = str(k).lstrip("\ufeff\uffef").strip().strip("\"'").strip()
-                        clean_row[clean_k] = v.strip() if isinstance(v, str) else v
-                rows.append(clean_row)
-            return rows
+            return [row for row in reader]
         except Exception as e:
             raise FileProcessingError(f"Failed to parse CSV: {str(e)}")
 

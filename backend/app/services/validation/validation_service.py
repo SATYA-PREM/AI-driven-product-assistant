@@ -8,19 +8,18 @@ from app.models.validation import ValidationResultModel, ValidationRecordResult
 from app.services.validation.schema_validator import schema_validator
 from app.services.validation.data_validator import data_validator
 from app.services.validation.business_rule_validator import business_rule_validator
-from app.services.validation.pydantic_validator import pydantic_validator
 from app.utils.text_utils import compute_text_hash
 from app.core.constants import DatasetStatus, ValidationStatus
 from app.core.exceptions import NotFoundError
 
 
 class ValidationService:
-    """Service for validating dataset records against Pydantic schema and business rules."""
+    """Service for validating dataset records against schema and business rules."""
 
     @staticmethod
     def validate_dataset(dataset_id: str, workspace_id: str, user_id: str = "") -> dict:
         """
-        Orchestrates full validation for a dataset using Pydantic v2 and domain checks.
+        Orchestrates full validation for a dataset.
         """
         dataset = dataset_repository.get_by_id(dataset_id)
         if not dataset:
@@ -28,6 +27,7 @@ class ValidationService:
 
         source_type = dataset.get("source_type", "feedback")
         raw_records = data_repository.get_raw_records(dataset_id, limit=50000)
+        raw_records = data_repository.get_raw_records(dataset_id, limit=0)
 
         seen_hashes = set()
         total = len(raw_records)
@@ -41,18 +41,14 @@ class ValidationService:
         for idx, record in enumerate(raw_records, start=1):
             record_id = str(record.get("_id", f"rec_{idx}"))
             row_num = record.get("row_number", idx)
-            raw_data = record.get("original_record") or record.get("data") or record
-            from app.services.ingestion.header_adapter import adapt_record_headers
-            data = adapt_record_headers(raw_data, fallback_idx=row_num)
+            data = record.get("original_record") or record.get("data") or record
 
-            is_pydantic_valid, pydantic_errors, pydantic_warnings = pydantic_validator.validate_record(data, source_type)
             is_schema_valid, schema_errors = schema_validator.validate_schema(data, source_type)
             is_data_valid, data_errors, data_warnings = data_validator.validate_data(data, source_type)
             is_biz_valid, biz_errors = business_rule_validator.validate_business_rules(data, source_type)
 
-            # Combine unique errors
-            all_errors = list(dict.fromkeys(pydantic_errors + schema_errors + data_errors + biz_errors))
-            all_warnings = list(dict.fromkeys(pydantic_warnings + data_warnings))
+            all_errors = schema_errors + data_errors + biz_errors
+            all_warnings = data_warnings
 
             # Duplicate check
             text_val = str(data.get("feedback") or data.get("review_text") or data.get("description") or "")
@@ -105,6 +101,20 @@ class ValidationService:
             dataset_id,
             DatasetStatus.VALIDATED.value,
             extra_fields={"updated_at": datetime.now(timezone.utc)}
+        )
+
+        from app.services.workflow.workflow_service import workflow_service
+        workflow_service.sync_dataset_workflow_step(
+            workspace_id=workspace_id,
+            dataset_id=dataset_id,
+            step_name="validation",
+            status="completed",
+            metadata={
+                "total_records": total,
+                "valid_count": valid_count,
+                "invalid_count": invalid_count,
+                "quality_score": quality_score,
+            },
         )
 
         return {

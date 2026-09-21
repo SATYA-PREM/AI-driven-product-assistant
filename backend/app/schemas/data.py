@@ -8,6 +8,8 @@ class DatasetResponse(BaseModel):
     workspace_id: str
     product_id: str
     filename: str
+    dataset_name: str | None = None
+    name: str | None = None
     format: str
     source_type: str
     file_size: int
@@ -15,6 +17,12 @@ class DatasetResponse(BaseModel):
     status: str
     uploaded_by: str
     created_at: datetime
+
+class DatasetUpdateRequest(BaseModel):
+    name: str | None = None
+    filename: str | None = None
+    description: str | None = None
+    source_type: str | None = None
 
 class DatasetListResponse(PaginatedResponse[DatasetResponse]):
     pass

@@ -10,23 +10,35 @@ VALID_TRANSITIONS = {
     WorkflowStepStatus.COMPLETED: []
 }
 
-def can_transition(current: WorkflowStepStatus, target: WorkflowStepStatus) -> bool:
-    """Check if a workflow step can transition to the target state."""
-    if current == target:
-        return True
-    return target in VALID_TRANSITIONS.get(current, [])
 
-def get_step_order() -> list[WorkflowStep]:
-    """Returns steps in pipeline order."""
-    return [
-        WorkflowStep.AUTH,
-        WorkflowStep.WORKSPACE,
-        WorkflowStep.PRODUCT,
-        WorkflowStep.UPLOAD,
-        WorkflowStep.INGESTION,
-        WorkflowStep.VALIDATION,
-        WorkflowStep.CLEANING,
-        WorkflowStep.NORMALIZATION,
-        WorkflowStep.PREPROCESSING,
-        WorkflowStep.AI_ANALYSIS
-    ]
+class WorkflowStateMachine:
+    """State machine governing allowed transitions between workflow statuses."""
+
+    def can_transition(self, current: WorkflowStepStatus, target: WorkflowStepStatus) -> bool:
+        if current == target:
+            return True
+        return target in VALID_TRANSITIONS.get(current, [])
+
+    def get_step_order(self) -> list[WorkflowStep]:
+        return [
+            WorkflowStep.AUTH,
+            WorkflowStep.WORKSPACE,
+            WorkflowStep.PRODUCT,
+            WorkflowStep.UPLOAD,
+            WorkflowStep.INGESTION,
+            WorkflowStep.VALIDATION,
+            WorkflowStep.CLEANING,
+            WorkflowStep.NORMALIZATION,
+            WorkflowStep.PREPROCESSING,
+            WorkflowStep.AI_ANALYSIS,
+            WorkflowStep.AGENT_1,
+            WorkflowStep.AGENT_2,
+            WorkflowStep.AGENT_3,
+            WorkflowStep.INTELLIGENCE,
+            WorkflowStep.REPORT,
+        ]
+
+
+workflow_state_machine = WorkflowStateMachine()
+can_transition = workflow_state_machine.can_transition
+get_step_order = workflow_state_machine.get_step_order

@@ -1,36 +1,34 @@
 from __future__ import annotations
-from app.core.constants import SOURCE_TYPE_REQUIRED_FIELDS
-
-def handle_missing_values(records: list[dict], source_type: str) -> list[dict]:
-    """
-    Handle missing values based on required/optional fields.
-    """
-    required_fields = SOURCE_TYPE_REQUIRED_FIELDS.get(source_type.upper(), [])
-    
-    for record in records:
-        for field in required_fields:
-            val = record.get(field)
-            if field == "customer_id" and not val:
-                val = record.get("feedback_id")
-            elif field == "feedback" and not val:
-                val = record.get("feedback_text")
-            elif field == "date" and not val:
-                val = record.get("feedback_date") or record.get("created_at")
-
-            if not val:
-                record["_missing_required"] = True
-                
-        # Optional fields handling could be explicit, but dict.get handles missing by returning None
-        for key in list(record.keys()):
-            if record[key] == "":
-                record[key] = None
-                
-    return records
+from app.core.constants import SOURCE_TYPE_REQUIRED_FIELDS, SourceType
 
 
 class MissingValueHandler:
+    """Handler for managing missing required and optional fields."""
+
     def handle_missing_values(self, records: list[dict], source_type: str) -> list[dict]:
-        return handle_missing_values(records, source_type)
+        st_key = source_type.lower() if isinstance(source_type, str) else source_type.value
+        required_fields = SOURCE_TYPE_REQUIRED_FIELDS.get(st_key, [])
+        if not required_fields:
+            for enum_val, fields in SOURCE_TYPE_REQUIRED_FIELDS.items():
+                if enum_val.value == st_key or enum_val.name.lower() == st_key:
+                    required_fields = fields
+                    break
+
+        results = []
+        for record in records:
+            rec_copy = dict(record)
+            for field in required_fields:
+                if not rec_copy.get(field):
+                    rec_copy["_missing_required"] = True
+
+            for key in list(rec_copy.keys()):
+                if rec_copy[key] == "":
+                    rec_copy[key] = None
+
+            results.append(rec_copy)
+
+        return results
 
 
 missing_value_handler = MissingValueHandler()
+handle_missing_values = missing_value_handler.handle_missing_values

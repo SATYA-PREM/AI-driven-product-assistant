@@ -11,7 +11,7 @@ from app.services.auth.auth_service import AuthService
 
 router = APIRouter(
     prefix="/auth",
-    tags=["Authentication"]
+    tags=["1. Authentication & Users"]
 )
 
 
@@ -23,12 +23,10 @@ def register(
     request: RegisterRequest
 ):
 
-    role_val = request.role.value if hasattr(request.role, "value") else (request.role or "product_manager")
     return AuthService.register(
         name=request.name,
         email=request.email,
-        password=request.password,
-        role=role_val
+        password=request.password
     )
 
 

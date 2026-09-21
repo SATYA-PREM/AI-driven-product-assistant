@@ -1,15 +1,18 @@
 from __future__ import annotations
-from app.utils.text_utils import remove_html_tags, clean_encoding
+from app.utils.text_utils import remove_html_tags, clean_encoding, normalize_text
 import re
 
-def preprocess_text(text: str) -> str:
-    """
-    Preprocess text by removing HTML, cleaning encoding, and collapsing whitespace.
-    """
-    if not text:
-        return ""
-    text = clean_encoding(text)
-    text = remove_html_tags(text)
-    text = text.lower()
-    text = re.sub(r'\s+', ' ', text).strip()
-    return text
+
+class TextPreprocessor:
+    """Preprocesses raw text for AI model readiness."""
+
+    def preprocess_text(self, text: str) -> str:
+        if not text:
+            return ""
+        text = clean_encoding(text)
+        text = remove_html_tags(text)
+        return normalize_text(text)
+
+
+text_preprocessor = TextPreprocessor()
+preprocess_text = text_preprocessor.preprocess_text

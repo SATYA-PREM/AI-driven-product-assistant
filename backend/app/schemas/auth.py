@@ -1,6 +1,4 @@
-from typing import Optional
 from pydantic import BaseModel, EmailStr, Field
-from app.core.constants import UserRole
 
 
 class RegisterRequest(BaseModel):
@@ -17,11 +15,6 @@ class RegisterRequest(BaseModel):
         ...,
         min_length=8,
         max_length=128
-    )
-
-    role: Optional[UserRole] = Field(
-        default=UserRole.PRODUCT_MANAGER,
-        description="Role preference: product_manager, data_engineer, product_designer, engineering_lead, customer_success"
     )
 
 

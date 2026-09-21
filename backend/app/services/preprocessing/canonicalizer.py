@@ -1,50 +1,47 @@
 from __future__ import annotations
 from app.models.processed_data import ProcessedDataModel
+from app.core.constants import SourceType
 
-def canonicalize(record: dict, source_type: str, dataset_id: str, workspace_id: str, product_id: str) -> dict:
-    """
-    Convert any source type into the canonical format.
-    """
-    source_upper = source_type.upper()
-    
-    customer_id = record.get("customer_id") or record.get("feedback_id")
-    rating = record.get("rating")
-    date = record.get("feedback_date") or record.get("date") or record.get("created_at")
-    text = record.get("feedback_text") or record.get("feedback") or record.get("text", "")
-    source_id = record.get("feedback_id")
-    
-    if source_upper == "REVIEW":
-        source_id = record.get("review_id")
-    elif source_upper == "SUPPORT_TICKET":
-        source_id = record.get("ticket_id")
-        
-    canonical_data = {
-        "text": text,
-        "rating": rating,
-        "date": date,
-        "customer_id": customer_id,
-        "source_id": source_id,
-        "source_type": source_upper,
-        "module": record.get("module"),
-        "platform": record.get("platform"),
-        "customer_segment": record.get("customer_segment"),
-        "country": record.get("country"),
-        "source": record.get("source"),
-        "customer_type": record.get("customer_type"),
-        "browser_or_client": record.get("browser_or_client"),
-        "device_or_os": record.get("device_or_os"),
-    }
-    canonical_data = {k: v for k, v in canonical_data.items() if v is not None}
-    
-    metadata = dict(record.get("features", {}))
-    for k in ["module", "platform", "customer_segment", "country", "source", "customer_type", "browser_or_client", "device_or_os"]:
-        if record.get(k):
-            metadata[k] = record.get(k)
-            
-    return ProcessedDataModel.create_document(
-        dataset_id=dataset_id,
-        workspace_id=workspace_id,
-        product_id=product_id,
-        canonical_data=canonical_data,
-        metadata=metadata
-    )
+
+class Canonicalizer:
+    """Converts multi-source domain objects into canonical ProductSignal documents."""
+
+    def canonicalize(
+        self,
+        record: dict,
+        source_type: str,
+        dataset_id: str,
+        workspace_id: str,
+        product_id: str
+    ) -> dict:
+        st = source_type.lower() if isinstance(source_type, str) else source_type.value
+        customer_id = str(record.get("customer_id") or "")
+        rating = record.get("rating")
+        date = str(record.get("date") or "")
+        text = str(record.get("text") or record.get("feedback") or record.get("review_text") or record.get("description") or "")
+
+        source_id = ""
+        if st == "review":
+            source_id = str(record.get("review_id") or "")
+        elif st == "support_ticket":
+            source_id = str(record.get("ticket_id") or "")
+        elif st == "feedback":
+            source_id = customer_id
+
+        return ProcessedDataModel.create_document(
+            dataset_id=dataset_id,
+            workspace_id=workspace_id,
+            product_id=product_id,
+            source_type=SourceType(st) if st in [s.value for s in SourceType] else SourceType.FEEDBACK,
+            source_id=source_id,
+            customer_id=customer_id,
+            text=text,
+            rating=rating if isinstance(rating, int) else None,
+            date=date if date else None,
+            metadata=record.get("features", {}),
+            preprocessing_metadata={"canonical_type": "ProductSignal"}
+        )
+
+
+canonicalizer = Canonicalizer()
+canonicalize = canonicalizer.canonicalize

@@ -6,6 +6,7 @@ from app.repositories.user_repository import user_repository
 from app.repositories.workspace_repository import workspace_repository
 from app.models.workspace_member import WorkspaceMemberModel
 from app.core.exceptions import NotFoundError, DuplicateError, AuthorizationError
+from app.services.workspace.activity_service import activity_service
 from app.utils.serialization import serialize_document
 
 class MemberService:
@@ -40,9 +41,20 @@ class MemberService:
         member_doc["added_by"] = ObjectId(added_by_user_id) if ObjectId.is_valid(added_by_user_id) else added_by_user_id
 
         workspace_members_collection.insert_one(member_doc)
+
+        user_name = user.get("name", "")
+        user_email = user.get("email", "")
+
+        activity_service.log_activity(
+            workspace_id=workspace_id,
+            action="member_added",
+            title=f"Member added: {user_email}",
+            description=f"Added as {role.upper()}",
+            user_id=added_by_user_id,
+            metadata={"member_user_id": user_id, "role": role}
+        )
+
         serialized = serialize_document(member_doc)
-        user_name = user.get("name", "Team Member")
-        user_email = user.get("email", email)
         serialized["name"] = user_name
         serialized["email"] = user_email
         serialized["user_name"] = user_name
@@ -66,30 +78,30 @@ class MemberService:
                     "as": "user_info"
                 }
             },
-            {"$unwind": {"path": "$user_info", "preserveNullAndEmptyArrays": True}}
+            {
+                "$unwind": {
+                    "path": "$user_info",
+                    "preserveNullAndEmptyArrays": True
+                }
+            }
         ]
         
         members = list(workspace_members_collection.aggregate(pipeline))
         results = []
         for m in members:
             m_serialized = serialize_document(m)
-            u_info = m.get("user_info") or {}
-            
-            # Fallback if lookup empty
-            if not u_info and m.get("user_id"):
-                uid_str = str(m["user_id"])
-                u_doc = user_repository.get_by_id(uid_str)
-                if u_doc:
-                    u_info = u_doc
+            u_info = m.get("user_info")
+            if not u_info:
+                uid = str(m.get("user_id", ""))
+                u_doc = user_repository.get_by_id(uid) if uid else None
+                u_info = u_doc or {}
 
-            name_val = u_info.get("name") or m.get("name") or "Team Member"
-            email_val = u_info.get("email") or m.get("email") or ""
-
-            m_serialized["name"] = name_val
-            m_serialized["email"] = email_val
-            m_serialized["user_name"] = name_val
-            m_serialized["user_email"] = email_val
-
+            user_name = u_info.get("name") or m_serialized.get("user_name") or m_serialized.get("name") or ""
+            user_email = u_info.get("email") or m_serialized.get("user_email") or m_serialized.get("email") or ""
+            m_serialized["name"] = user_name
+            m_serialized["email"] = user_email
+            m_serialized["user_name"] = user_name
+            m_serialized["user_email"] = user_email
             if "user_info" in m_serialized:
                 del m_serialized["user_info"]
             results.append(m_serialized)
@@ -110,20 +122,25 @@ class MemberService:
         
         if not result:
             raise NotFoundError(f"Member with user_id {user_id} not found in workspace.")
-            
+        
         serialized = serialize_document(result)
-        user = user_repository.get_by_id(str(user_id))
-        if user:
-            serialized["name"] = user.get("name", "Team Member")
-            serialized["email"] = user.get("email", "")
-            serialized["user_name"] = user.get("name", "Team Member")
-            serialized["user_email"] = user.get("email", "")
-        else:
-            serialized["name"] = serialized.get("name") or "Team Member"
-            serialized["email"] = serialized.get("email") or ""
-            serialized["user_name"] = serialized["name"]
-            serialized["user_email"] = serialized["email"]
+        user = user_repository.get_by_id(user_id)
+        u_info = user or {}
+        user_name = u_info.get("name", "")
+        user_email = u_info.get("email", "")
 
+        activity_service.log_activity(
+            workspace_id=workspace_id,
+            action="member_role_updated",
+            title=f"Role updated: {user_email or user_id}",
+            description=f"Role changed to {new_role.upper()}",
+            metadata={"member_user_id": user_id, "role": new_role}
+        )
+
+        serialized["name"] = user_name
+        serialized["email"] = user_email
+        serialized["user_name"] = user_name
+        serialized["user_email"] = user_email
         return serialized
 
     @staticmethod
@@ -146,6 +163,14 @@ class MemberService:
         
         if result.deleted_count == 0:
             raise NotFoundError(f"Member with user_id {user_id} not found in workspace.")
+
+        activity_service.log_activity(
+            workspace_id=workspace_id,
+            action="member_removed",
+            title="Team member removed",
+            description=f"Member ID {user_id} removed from workspace",
+            metadata={"member_user_id": user_id}
+        )
             
         return True
 
