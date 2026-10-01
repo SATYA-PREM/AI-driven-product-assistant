@@ -1,239 +1,333 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { 
-  Brain, Mail, Lock, ArrowRight, ArrowLeft, Crown, 
-  BarChart3, Palette, Code2, ShieldAlert, UserX
-} from 'lucide-react';
-import { setCurrentUser, getStoredWorkspaces } from '../../utils/workspaceAccess';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { authApi, workspaceApi } from '../../api/client';
+import { getActiveWorkspaceId } from '../../utils/workspaceAccess';
+
+const ROLES = [
+  'Designer',
+  'Developer',
+  'Tester',
+  'DevOps',
+  'Stakeholder',
+  'Research & Development',
+];
 
 export default function Login() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const location = useLocation();
+
+  const [form, setForm] = useState({
+    email: '',
+    password: '',
+  });
+
+  const [selectedRole, setSelectedRole] = useState('');
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const demoAccounts = [
-    {
-      name: 'Priya Sharma',
-      role: 'PRODUCT_MANAGER',
-      roleTitle: 'Product Manager (Owner)',
-      email: 'pm@demo.com',
-      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
-      icon: Crown,
-      badgeColor: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
-      description: 'Workspace Owner • Full PM Control & Assignation'
-    },
-    {
-      name: 'Arjun Mehta',
-      role: 'USER',
-      roleTitle: 'Product Analyst (Admin)',
-      email: 'analyst@demo.com',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
-      icon: BarChart3,
-      badgeColor: 'bg-blue-500/10 text-blue-400 border-blue-500/30',
-      description: 'Assigned to E-Commerce Platform'
-    },
-    {
-      name: 'Neha Kapoor',
-      role: 'USER',
-      roleTitle: 'UX Designer (Member)',
-      email: 'designer@demo.com',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-      icon: Palette,
-      badgeColor: 'bg-pink-500/10 text-pink-400 border-pink-500/30',
-      description: 'Assigned to E-Commerce Platform'
-    },
-    {
-      name: 'Rohit Singh',
-      role: 'USER',
-      roleTitle: 'Data Analyst (Member)',
-      email: 'developer@demo.com',
-      avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
-      icon: Code2,
-      badgeColor: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30',
-      description: 'Assigned to E-Commerce Platform'
-    },
-    {
-      name: 'Rahul Verma',
-      role: 'USER',
-      roleTitle: 'Unassigned Member',
-      email: 'unassigned@demo.com',
-      avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80',
-      icon: UserX,
-      badgeColor: 'bg-slate-500/10 text-slate-400 border-slate-500/30',
-      description: 'Not yet assigned (Test PM Assignation)'
-    }
-  ];
+  const handleChange = (e) => {
+    const { name, value } = e.target;
 
-  const handleLoginForUser = (userObj) => {
-    setCurrentUser(userObj);
-
-    if (userObj.role === 'PRODUCT_MANAGER' || userObj.email === 'pm@demo.com') {
-      navigate('/workspaces');
-    } else {
-      // Check if user is in any workspace
-      const workspaces = getStoredWorkspaces();
-      const assignedWs = workspaces.find((ws) => 
-        ws.members?.some((m) => (typeof m === 'object' ? m.email : m).toLowerCase() === userObj.email.toLowerCase())
-      );
-
-      if (assignedWs) {
-        navigate(`/workspace/${assignedWs.id}/overview`);
-      } else {
-        // Not assigned yet, take to /workspaces where friendly unassigned prompt appears
-        navigate('/workspaces');
-      }
-    }
+    setForm((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!email) return;
 
-    const matched = demoAccounts.find((d) => d.email.toLowerCase() === email.toLowerCase());
-    if (matched) {
-      handleLoginForUser(matched);
-    } else {
-      // Treat as custom user
-      const isPm = email.toLowerCase().includes('pm') || email.toLowerCase().includes('admin');
-      handleLoginForUser({
-        name: email.split('@')[0],
-        email: email.toLowerCase().trim(),
-        role: isPm ? 'PRODUCT_MANAGER' : 'USER',
-        roleTitle: isPm ? 'Product Manager' : 'Team Member',
-        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(email)}`
+    setError('');
+
+    if (!form.email.trim()) {
+      setError('Please enter your email.');
+      return;
+    }
+
+    if (!form.password) {
+      setError('Please enter your password.');
+      return;
+    }
+
+    if (!selectedRole) {
+      setError('Please select your role.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      // 1. Actual backend authentication
+      const loginResponse = await authApi.login({
+        email: form.email.trim(),
+        password: form.password,
       });
+
+      /*
+       * authApi.login() already stores access_token
+       * using setStoredToken() inside client.js.
+       */
+
+      // 2. Store complete current user/session response
+      const user = loginResponse?.user || loginResponse?.data?.user || null;
+
+      if (user) {
+        localStorage.setItem(
+          'currentUser',
+          JSON.stringify({
+            ...user,
+            token:
+              loginResponse?.access_token ||
+              loginResponse?.token ||
+              user.token ||
+              user.access_token,
+          })
+        );
+      } else {
+        // Still keep a valid session object so ProtectedRoutes
+        // can recognize the authenticated user.
+        localStorage.setItem(
+          'currentUser',
+          JSON.stringify({
+            email: form.email.trim(),
+            token:
+              loginResponse?.access_token ||
+              loginResponse?.token ||
+              '',
+          })
+        );
+      }
+
+      // 3. Save selected frontend role
+      localStorage.setItem('user_role', selectedRole);
+
+      // 4. Try existing active workspace first
+      let workspaceId = getActiveWorkspaceId();
+
+      // 5. If there is no active workspace, get user's existing workspaces
+      if (!workspaceId) {
+        const workspaces = await workspaceApi.listWorkspaces();
+
+        if (Array.isArray(workspaces) && workspaces.length > 0) {
+          workspaceId =
+            workspaces[0]?.id ||
+            workspaces[0]?._id ||
+            workspaces[0]?.workspace_id;
+        }
+      }
+
+      /*
+       * 6. If the user originally tried to open a protected route,
+       * send them there after successful login.
+       *
+       * Otherwise open the existing workspace overview.
+       */
+      const requestedPath = location.state?.from?.pathname;
+
+      if (
+        requestedPath &&
+        requestedPath !== '/login' &&
+        workspaceId &&
+        requestedPath.startsWith('/workspace/')
+      ) {
+        navigate(
+          `${requestedPath}${location.state?.from?.search || ''}`,
+          { replace: true }
+        );
+        return;
+      }
+
+      // 7. Existing workspace -> existing overview
+      if (workspaceId) {
+        localStorage.setItem('active_workspace_id', String(workspaceId));
+
+        window.dispatchEvent(
+          new CustomEvent('active_workspace_changed')
+        );
+
+        navigate(`/workspace/${workspaceId}/overview`, {
+          replace: true,
+        });
+
+        return;
+      }
+
+      // 8. Authenticated but no workspace exists
+      navigate('/workspaces', {
+        replace: true,
+      });
+    } catch (err) {
+      console.error('Login failed:', err);
+
+      setError(
+        err?.message ||
+          'Login failed. Please check your email and password.'
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#080a11] text-slate-100 font-sans selection:bg-[#5b3df5] selection:text-white flex flex-col justify-center items-center p-4 sm:p-6 relative overflow-x-hidden">
-      
-      {/* Background glow */}
-      <div className="fixed inset-0 bg-[radial-gradient(#1f2639_1px,transparent_1px)] [background-size:24px_24px] opacity-25 pointer-events-none"></div>
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#5b3df5]/15 blur-[160px] rounded-full pointer-events-none"></div>
+    <div className="min-h-screen bg-[#070910] text-white flex items-center justify-center px-4 relative overflow-hidden">
 
-      {/* Top back link */}
-      <div className="w-full max-w-xl flex items-center justify-between mb-6 z-10">
-        <Link 
-          to="/"
-          className="inline-flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-white transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" /> Back to Landing Page
-        </Link>
-        <span className="text-[11px] font-mono text-slate-500 uppercase tracking-wider">ProdIntel Auth v2.0</span>
+      {/* Background glow */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute top-[-180px] left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-[#5b3df5]/15 blur-[140px] rounded-full" />
+
+        <div className="absolute bottom-[-180px] right-[-100px] w-[450px] h-[350px] bg-purple-600/10 blur-[120px] rounded-full" />
       </div>
 
-      {/* Main Auth Card */}
-      <div className="w-full max-w-xl rounded-2xl border border-white/[0.1] bg-[#0e121d]/90 backdrop-blur-2xl shadow-[0_24px_80px_rgba(0,0,0,0.6)] p-6 sm:p-8 z-10">
-        
-        {/* Brand Header */}
-        <div className="flex items-center gap-3.5 mb-6 border-b border-white/[0.08] pb-5">
-          <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-[#4f2ee8] to-[#7952fc] flex items-center justify-center shadow-lg shadow-[#5b3df5]/30 shrink-0">
-            <Brain className="w-6 h-6 text-white" />
+      {/* Grid */}
+      <div className="absolute inset-0 bg-grid-pattern-dark opacity-30 pointer-events-none" />
+
+      {/* Login Card */}
+      <div className="relative z-10 w-full max-w-md">
+
+        {/* Logo / Brand */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-[#6d4aff] to-[#4324d8] shadow-lg shadow-purple-900/30 mb-4">
+            <span className="text-xl font-black">P</span>
           </div>
-          <div>
-            <h1 className="text-xl font-bold text-white tracking-tight">Sign in to ProdIntel AI</h1>
-            <p className="text-xs text-slate-400">Access your Product Workspaces and Intelligence Pipelines</p>
-          </div>
+
+          <h1 className="text-2xl font-bold tracking-tight">
+            Product Intelligence
+          </h1>
+
+          <p className="text-sm text-slate-400 mt-2">
+            Sign in to your workspace
+          </p>
         </div>
 
-        {/* Form Login */}
-        <form onSubmit={handleSubmit} className="space-y-4 mb-8">
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
-              Work Email Address
-            </label>
-            <div className="relative">
-              <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input 
+        {/* Card */}
+        <div className="bg-[#0d1019]/95 border border-white/10 rounded-2xl p-6 sm:p-7 shadow-2xl shadow-black/40 backdrop-blur-xl">
+
+          <form onSubmit={handleSubmit}>
+
+            {/* Email */}
+            <div className="mb-5">
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Email
+              </label>
+
+              <input
                 type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="e.g. pm@demo.com or designer@demo.com"
-                required
-                className="w-full pl-10 pr-4 py-3 rounded-xl bg-white/[0.04] border border-white/[0.1] text-sm text-white placeholder-slate-500 focus:outline-none focus:border-[#5b3df5] focus:ring-1 focus:ring-[#5b3df5] transition-all"
+                name="email"
+                value={form.email}
+                onChange={handleChange}
+                placeholder="you@example.com"
+                autoComplete="email"
+                disabled={loading}
+                className="w-full h-11 px-4 rounded-lg bg-[#080a11] border border-white/10 text-white placeholder:text-slate-600 outline-none transition focus:border-[#6d4aff] focus:ring-1 focus:ring-[#6d4aff]/40 disabled:opacity-50"
               />
             </div>
-          </div>
 
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider">
+            {/* Password */}
+            <div className="mb-5">
+              <label className="block text-sm font-medium text-slate-300 mb-2">
                 Password
               </label>
-              <span className="text-[11px] text-slate-500 hover:text-slate-400 cursor-pointer">Any password works for demo</span>
-            </div>
-            <div className="relative">
-              <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input 
+
+              <input
                 type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                name="password"
+                value={form.password}
+                onChange={handleChange}
                 placeholder="••••••••"
-                className="w-full pl-10 pr-4 py-3 rounded-xl bg-white/[0.04] border border-white/[0.1] text-sm text-white placeholder-slate-500 focus:outline-none focus:border-[#5b3df5] focus:ring-1 focus:ring-[#5b3df5] transition-all"
+                autoComplete="current-password"
+                disabled={loading}
+                className="w-full h-11 px-4 rounded-lg bg-[#080a11] border border-white/10 text-white placeholder:text-slate-600 outline-none transition focus:border-[#6d4aff] focus:ring-1 focus:ring-[#6d4aff]/40 disabled:opacity-50"
               />
             </div>
+
+            {/* Role */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-slate-300 mb-3">
+                Select your role
+              </label>
+
+              <div className="grid grid-cols-2 gap-2">
+                {ROLES.map((role) => {
+                  const active = selectedRole === role;
+
+                  return (
+                    <button
+                      key={role}
+                      type="button"
+                      disabled={loading}
+                      onClick={() => {
+                        setSelectedRole(role);
+                        setError('');
+                      }}
+                      className={`
+                        min-h-[42px]
+                        px-3
+                        rounded-lg
+                        border
+                        text-xs
+                        font-medium
+                        transition-all
+                        text-left
+                        ${
+                          active
+                            ? 'bg-[#5b3df5]/15 border-[#6d4aff] text-white shadow-[0_0_20px_rgba(91,61,245,0.12)]'
+                            : 'bg-[#080a11] border-white/10 text-slate-400 hover:text-white hover:border-white/20'
+                        }
+                      `}
+                    >
+                      <span
+                        className={`
+                          inline-block w-1.5 h-1.5 rounded-full mr-2
+                          ${
+                            active
+                              ? 'bg-[#8b75ff]'
+                              : 'bg-slate-600'
+                          }
+                        `}
+                      />
+
+                      {role}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Error */}
+            {error && (
+              <div className="mb-5 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2.5 text-sm text-red-300">
+                {error}
+              </div>
+            )}
+
+            {/* Submit */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full h-11 rounded-lg bg-gradient-to-r from-[#6d4aff] to-[#5435e8] hover:from-[#795cff] hover:to-[#6245f0] text-white font-semibold text-sm transition-all shadow-lg shadow-purple-900/20 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Signing in...
+                </span>
+              ) : (
+                'Sign In'
+              )}
+            </button>
+          </form>
+
+          <div className="mt-6 pt-5 border-t border-white/5 text-center">
+            <p className="text-xs text-slate-600">
+              Secure access to your Product Intelligence workspace
+            </p>
           </div>
-
-          <button
-            type="submit"
-            className="w-full py-3.5 rounded-xl font-semibold text-sm bg-[#5b3df5] hover:bg-[#4f2ee8] text-white shadow-lg shadow-[#5b3df5]/30 transition-all hover:scale-[1.01] flex items-center justify-center gap-2 cursor-pointer mt-2"
-          >
-            Authenticate & Open Workspace <ArrowRight className="w-4 h-4" />
-          </button>
-        </form>
-
-        {/* Divider */}
-        <div className="relative flex items-center justify-center my-6">
-          <div className="border-t border-white/[0.08] w-full"></div>
-          <span className="bg-[#0e121d] px-3 text-[11px] font-mono text-slate-500 uppercase tracking-widest absolute">
-            Or Instant Demo Login
-          </span>
         </div>
 
-        {/* 1-Click Demo Profiles */}
-        <div className="space-y-2.5">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-semibold text-slate-300">Click a persona to login instantly:</span>
-            <span className="text-[10px] font-mono text-[#8b5cf6] bg-[#5b3df5]/10 px-2 py-0.5 rounded border border-[#5b3df5]/20">1-Click</span>
-          </div>
-
-          {demoAccounts.map((account, idx) => {
-            const Icon = account.icon;
-            return (
-              <button
-                key={idx}
-                type="button"
-                onClick={() => handleLoginForUser(account)}
-                className="w-full p-3 rounded-xl bg-white/[0.025] hover:bg-white/[0.06] border border-white/[0.07] hover:border-[#5b3df5]/50 flex items-center justify-between gap-3 text-left transition-all duration-200 group cursor-pointer"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <img 
-                    src={account.avatar} 
-                    alt={account.name} 
-                    className="w-9 h-9 rounded-lg object-cover border border-white/10 shrink-0"
-                  />
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-white group-hover:text-[#a28bff] transition-colors truncate">
-                        {account.name}
-                      </span>
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full border font-medium shrink-0 ${account.badgeColor}`}>
-                        {account.roleTitle.split(' ')[0]}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-400 truncate">{account.description}</p>
-                  </div>
-                </div>
-                <ArrowRight className="w-4 h-4 text-slate-500 group-hover:text-white group-hover:translate-x-1 transition-all shrink-0" />
-              </button>
-            );
-          })}
-        </div>
-
+        <p className="text-center text-xs text-slate-600 mt-6">
+          Product Intelligence Platform
+        </p>
       </div>
-
     </div>
   );
 }

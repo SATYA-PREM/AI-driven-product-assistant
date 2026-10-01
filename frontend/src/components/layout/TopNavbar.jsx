@@ -1,24 +1,71 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation, useParams, Link, useNavigate } from 'react-router-dom';
 import { 
   Search, Bell, HelpCircle, ChevronDown, 
-  Layers, LogOut, Settings, UserCheck, Shield
+  Layers, LogOut, Settings, UserCheck, Database, Sparkles
 } from 'lucide-react';
 import { 
   getCurrentUser, logoutUser, getStoredWorkspaces, 
-  getWorkspaceById, setCurrentUser 
+  getWorkspaceById, setCurrentUser, setActiveWorkspaceId,
+  getActiveDatasetId, setActiveDatasetId, subscribeToActiveDataset,
+  setActiveDataset, getActiveDataset
 } from '../../utils/workspaceAccess';
+import { datasetApi } from '../../api/client';
 
 export default function TopNavbar({ isDark = true }) {
-  const { workspaceId } = useParams();
+  const { workspaceId: routeWorkspaceId } = useParams();
+  const workspaceId = routeWorkspaceId || localStorage.getItem('active_workspace_id');
   const location = useLocation();
   const navigate = useNavigate();
+
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showWsMenu, setShowWsMenu] = useState(false);
+
+  // Dataset Batch Scope State
+  const [datasets, setDatasets] = useState([]);
+  const [selectedDatasetId, setSelectedDatasetId] = useState(() => getActiveDatasetId());
 
   const currentUser = getCurrentUser();
   const workspaces = getStoredWorkspaces();
   const currentWorkspace = getWorkspaceById(workspaceId);
+
+  useEffect(() => {
+    const unsubDataset = subscribeToActiveDataset((newDsId) => setSelectedDatasetId(newDsId));
+    return () => {
+      unsubDataset();
+    };
+  }, []);
+
+  const loadWorkspaceDatasets = () => {
+    if (!workspaceId) return;
+    datasetApi.list(workspaceId)
+      .then((dsRes) => {
+        if (Array.isArray(dsRes)) {
+          setDatasets(dsRes);
+          const currentActive = getActiveDatasetId();
+          if (currentActive) {
+            const found = dsRes.find((d) => (d.id || d._id) === currentActive);
+            if (found) {
+              setActiveDataset(found);
+            }
+          }
+        }
+      })
+      .catch((err) => console.warn('TopNavbar datasets notice:', err?.message));
+  };
+
+  useEffect(() => {
+    loadWorkspaceDatasets();
+    window.addEventListener('datasets_updated', loadWorkspaceDatasets);
+    return () => window.removeEventListener('datasets_updated', loadWorkspaceDatasets);
+  }, [workspaceId]);
+
+  const handleDatasetChange = (e) => {
+    const val = e.target.value;
+    setSelectedDatasetId(val);
+    const found = datasets.find((d) => (d.id || d._id) === val) || null;
+    setActiveDatasetId(val, found);
+  };
 
   const getPageTitle = () => {
     const paths = location.pathname.split('/').filter(Boolean);
@@ -28,6 +75,7 @@ export default function TopNavbar({ isDark = true }) {
   };
 
   const handleSwitchWorkspace = (newId) => {
+    setActiveWorkspaceId(newId);
     setShowWsMenu(false);
     navigate(`/workspace/${newId}/overview`);
   };
@@ -49,10 +97,10 @@ export default function TopNavbar({ isDark = true }) {
   };
 
   return (
-    <header className="h-16 px-6 lg:px-8 border-b border-[#171e30] bg-[#070910]/90 backdrop-blur-xl flex items-center justify-between shrink-0 z-20">
+    <header className="h-16 px-6 lg:px-8 border-b border-[#171e30] bg-[#070910]/90 backdrop-blur-xl flex items-center justify-between shrink-0 z-20 select-none">
       
-      {/* Left: Breadcrumbs / Active Module */}
-      <div className="flex items-center gap-3">
+      {/* Left: Workspace & Context Breadcrumbs */}
+      <div className="flex items-center gap-2.5 flex-wrap">
         <Link 
           to="/workspaces"
           className="text-xs font-semibold text-slate-400 hover:text-white flex items-center gap-1.5 transition-colors"
@@ -60,47 +108,80 @@ export default function TopNavbar({ isDark = true }) {
           <Layers className="w-4 h-4 text-[#8b5cf6]" />
           <span>Workspaces</span>
         </Link>
+
         <span className="text-slate-600">/</span>
+
+        {/* Workspace Switcher */}
         <div className="relative">
           <button
             type="button"
             onClick={() => setShowWsMenu(!showWsMenu)}
-            className="flex items-center gap-1.5 text-xs font-bold text-white hover:text-[#a78bfa] transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 text-xs font-bold text-white hover:text-[#a78bfa] transition-colors cursor-pointer bg-[#121828] border border-[#202a42] px-3 py-1.5 rounded-lg"
           >
-            <span>{currentWorkspace?.name || 'E-Commerce Platform'}</span>
+            <span className="truncate max-w-[140px] sm:max-w-[180px]">{currentWorkspace?.name || 'Workspace'}</span>
             <ChevronDown size={12} className="text-slate-400" />
           </button>
 
           {/* Workspace dropdown */}
           {showWsMenu && (
-            <div className="absolute top-full left-0 mt-2 w-56 rounded-xl bg-[#121828] border border-[#202a42] shadow-2xl p-1.5 z-40 text-xs">
+            <div className="absolute top-full left-0 mt-2 w-60 rounded-xl bg-[#121828] border border-[#202a42] shadow-2xl p-1.5 z-50 text-xs">
               <span className="text-[10px] font-bold text-slate-500 uppercase px-2 py-1 block">
                 Switch Workspace
               </span>
-              {workspaces.map((ws) => (
-                <button
-                  key={ws.id}
-                  type="button"
-                  onClick={() => handleSwitchWorkspace(ws.id)}
-                  className={`w-full text-left px-2.5 py-2 rounded-lg transition-all flex items-center justify-between cursor-pointer ${
-                    ws.id === workspaceId 
-                      ? 'bg-[#5b3df5] text-white font-bold' 
-                      : 'text-slate-300 hover:bg-white/[0.05]'
-                  }`}
-                >
-                  <span className="truncate">{ws.name}</span>
-                  {ws.id === workspaceId && <span className="text-[10px] font-mono">Active</span>}
-                </button>
-              ))}
+              {workspaces.map((ws) => {
+                const wid = ws.id || ws._id;
+                const isCur = wid === workspaceId;
+                return (
+                  <button
+                    key={wid}
+                    type="button"
+                    onClick={() => handleSwitchWorkspace(wid)}
+                    className={`w-full text-left px-2.5 py-2 rounded-lg transition-all flex items-center justify-between cursor-pointer ${
+                      isCur 
+                        ? 'bg-[#5b3df5] text-white font-bold' 
+                        : 'text-slate-300 hover:bg-white/[0.05]'
+                    }`}
+                  >
+                    <span className="truncate">{ws.name}</span>
+                    {isCur && <span className="text-[10px] font-mono">Active</span>}
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
+
         <span className="text-slate-600">/</span>
-        <span className="text-xs font-semibold text-[#8b5cf6]">{getPageTitle()}</span>
+
+        {/* Feedback Batch Dataset Scope Selector */}
+        <div className="flex items-center gap-1.5 bg-[#121828] border border-[#202a42] px-3 py-1.5 rounded-lg text-xs">
+          <Database size={13} className="text-emerald-400 shrink-0" />
+          <select
+            value={selectedDatasetId}
+            onChange={handleDatasetChange}
+            className="bg-transparent text-white text-[11px] font-semibold border-none outline-none cursor-pointer focus:ring-0 max-w-[180px] sm:max-w-[260px] truncate"
+            title="Feedback Batch / Dataset Scope"
+          >
+            <option value="" className="bg-[#121828] text-white">✨ All Feedback Batches</option>
+            {datasets.map((d) => {
+              const dsid = d.id || d._id;
+              const name = d.dataset_name || d.name || d.filename || d.file_name || 'Feedback Batch';
+              const rows = d.record_count || d.total_rows || 0;
+              return (
+                <option key={dsid} value={dsid} className="bg-[#121828] text-white">
+                  📊 {name} ({rows} rows)
+                </option>
+              );
+            })}
+          </select>
+        </div>
+
+        <span className="hidden xl:inline text-slate-600">/</span>
+        <span className="hidden xl:inline text-xs font-semibold text-[#8b5cf6]">{getPageTitle()}</span>
       </div>
 
       {/* Right Controls */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3 sm:gap-4 shrink-0">
         
         {/* Search */}
         <button 
@@ -118,7 +199,7 @@ export default function TopNavbar({ isDark = true }) {
           title="Notifications"
         >
           <Bell className="w-4 h-4" />
-          <span className="absolute 1 top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500"></span>
+          <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500"></span>
         </button>
 
         {/* Help */}
