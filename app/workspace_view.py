@@ -845,5 +845,8 @@ WORKSPACE_HTML = """
 </html>
 """
 
+def get_workspaces_html() -> str:
+    return WORKSPACE_HTML
+
 def get_workspace_dashboard() -> HTMLResponse:
     return HTMLResponse(content=WORKSPACE_HTML)

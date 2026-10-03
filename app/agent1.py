@@ -30,7 +30,7 @@ os.environ["CREWAI_TELEMETRY_OPT_OUT"] = "true"
 os.environ["OTEL_SDK_DISABLED"] = "true"
 
 from app.config import settings
-from app.database import db, batches_col, cleaned_data_col, ai_jobs_col, feedback_analyses_col
+from app.database import db, batches_col, raw_data_col, cleaned_data_col, ai_jobs_col, feedback_analyses_col
 from app.schemas import FeedbackAnalysisResult
 from app.prompts import (
     AGENT1_ROLE,
