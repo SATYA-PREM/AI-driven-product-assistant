@@ -465,8 +465,8 @@ export default function WorkspacesPage({ onNavigate }) {
                   key={item.name}
                   onClick={() => {
                     setActiveNav(item.name);
-                    if (item.name === 'Roadmap' && onNavigate) {
-                      onNavigate('Roadmap');
+                    if (onNavigate) {
+                      onNavigate(item.name);
                     }
                   }}
                   className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors text-left ${

@@ -3,13 +3,17 @@ import WorkspacesPage from './pages/WorkspacesPage';
 import RoadmapPage from './pages/RoadmapPage';
 import RequirementsPage from './pages/RequirementsPage';
 import ReportsPage from './pages/ReportsPage';
+import AIAssistantPage from './pages/AIAssistantPage';
 
 function App() {
-  // Default to Reports page as requested
-  const [currentPage, setCurrentPage] = useState('Reports');
+  // Default to AI Assistant page as requested
+  const [currentPage, setCurrentPage] = useState('AI Assistant');
 
   const renderCurrentPage = () => {
     switch (currentPage) {
+      case 'AI Assistant':
+      case 'Assistant':
+        return <AIAssistantPage onNavigate={setCurrentPage} />;
       case 'Reports':
         return <ReportsPage onNavigate={setCurrentPage} />;
       case 'Requirements':
