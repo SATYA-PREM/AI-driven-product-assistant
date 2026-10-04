@@ -1,0 +1,3 @@
+@echo off
+echo Opening ProdIntel AI Assistant Preview in your default browser...
+start "" "%~dp0view_ai_assistant.html"
